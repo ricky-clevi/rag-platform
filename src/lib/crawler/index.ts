@@ -1,3 +1,4 @@
+import robotsParser from 'robots-parser';
 import { crawlPageHttp } from './http-crawler';
 import { crawlPageBrowser } from './browser-crawler';
 import { chunkText, type TextChunk } from './chunker';
@@ -18,6 +19,25 @@ export interface CrawlCallbacks {
   onError: (url: string, error: string) => void;
 }
 
+const USER_AGENT = 'AgentForgeBot';
+
+async function fetchRobotsTxt(baseUrl: string) {
+  try {
+    const robotsUrl = new URL('/robots.txt', baseUrl).toString();
+    const response = await fetch(robotsUrl, {
+      headers: { 'User-Agent': USER_AGENT },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (response.ok) {
+      const text = await response.text();
+      return robotsParser(robotsUrl, text);
+    }
+  } catch {
+    // If robots.txt is not available, allow all
+  }
+  return null;
+}
+
 export async function crawlWebsite(
   startUrl: string,
   callbacks: CrawlCallbacks
@@ -31,11 +51,19 @@ export async function crawlWebsite(
   // Rate limiting: delay between requests
   const DELAY_MS = 500;
 
+  // Fetch and parse robots.txt before crawling
+  const robots = await fetchRobotsTxt(normalizedStart);
+
   while (queue.length > 0) {
     const url = queue.shift()!;
 
     if (visited.has(url)) continue;
     if (shouldSkipUrl(url)) continue;
+
+    // Respect robots.txt rules
+    if (robots && !robots.isAllowed(url, USER_AGENT)) {
+      continue;
+    }
 
     visited.add(url);
 
@@ -80,6 +108,10 @@ export async function crawlWebsite(
           isSameDomain(normalizedLink, normalizedStart) &&
           !shouldSkipUrl(normalizedLink)
         ) {
+          // Respect robots.txt for discovered URLs too
+          if (robots && !robots.isAllowed(normalizedLink, USER_AGENT)) {
+            continue;
+          }
           queue.push(normalizedLink);
         }
       }
@@ -91,8 +123,10 @@ export async function crawlWebsite(
       );
     }
 
-    // Rate limiting
-    await new Promise((resolve) => setTimeout(resolve, DELAY_MS));
+    // Rate limiting — also respect crawl-delay from robots.txt
+    const crawlDelay = robots?.getCrawlDelay(USER_AGENT);
+    const delayMs = crawlDelay ? crawlDelay * 1000 : DELAY_MS;
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
 
   return {

@@ -37,25 +37,25 @@ export function ChatInterface({
   return (
     <div className="flex h-full flex-col">
       {/* Chat Header */}
-      <div className="flex items-center justify-between border-b px-4 py-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground">
+      <div className="flex items-center justify-between border-b px-3 py-2 sm:px-4 sm:py-3">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
             <Bot className="h-4 w-4" />
           </div>
-          <div>
-            <h2 className="text-sm font-semibold">{agentName}</h2>
-            <p className="text-xs text-muted-foreground">{t('poweredBy')}</p>
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold truncate">{agentName}</h2>
+            <p className="text-xs text-muted-foreground hidden sm:block">{t('poweredBy')}</p>
           </div>
         </div>
-        <Button variant="ghost" size="sm" onClick={resetChat}>
-          <RotateCcw className="mr-1 h-3 w-3" />
-          {t('newConversation')}
+        <Button variant="ghost" size="sm" onClick={resetChat} className="shrink-0">
+          <RotateCcw className="h-3 w-3 sm:mr-1" />
+          <span className="hidden sm:inline">{t('newConversation')}</span>
         </Button>
       </div>
 
       {/* Messages */}
-      <ScrollArea className="flex-1 p-4" ref={scrollRef}>
-        <div className="mx-auto max-w-2xl space-y-4">
+      <ScrollArea className="flex-1 p-3 sm:p-4" ref={scrollRef}>
+        <div className="mx-auto max-w-2xl space-y-3 sm:space-y-4">
           {/* Welcome message */}
           {messages.length === 0 && (
             <MessageBubble
@@ -77,7 +77,7 @@ export function ChatInterface({
       </ScrollArea>
 
       {/* Input */}
-      <div className="border-t p-4">
+      <div className="border-t p-3 sm:p-4">
         <div className="mx-auto max-w-2xl">
           <ChatInput
             onSend={sendMessage}
