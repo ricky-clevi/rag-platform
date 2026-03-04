@@ -117,6 +117,7 @@
       "invalidUrl": "유효한 URL을 입력해주세요"
     },
     "status": {
+      "draft": "초안",
       "pending": "대기 중",
       "crawling": "크롤링 중",
       "processing": "처리 중",

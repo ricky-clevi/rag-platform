@@ -117,6 +117,7 @@
       "invalidUrl": "Please enter a valid URL"
     },
     "status": {
+      "draft": "Draft",
       "pending": "Pending",
       "crawling": "Crawling",
       "processing": "Processing",

@@ -26,14 +26,15 @@ export default function AgentDetailPage({
   const t = useTranslations('agents.detail');
   const tCommon = useTranslations('common');
   const [agent, setAgent] = useState<Agent | null>(null);
-  const [stats, setStats] = useState({ pages: 0, documents: 0 });
+  const [agentSettings, setAgentSettings] = useState<AgentSettings | null>(null);
+  const [stats, setStats] = useState({ pages: 0, chunks: 0 });
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
 
   // Settings form state
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
-  const [editIsPublic, setEditIsPublic] = useState(true);
+  const [editVisibility, setEditVisibility] = useState<'public' | 'private' | 'passcode'>('public');
   const [editWelcomeMessage, setEditWelcomeMessage] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -44,14 +45,14 @@ export default function AgentDetailPage({
       if (response.ok) {
         const data = await response.json();
         setAgent(data.agent);
+        setAgentSettings(data.settings);
         setStats(data.stats);
 
         // Initialize form state
         setEditName(data.agent.name || '');
         setEditDescription(data.agent.description || '');
-        setEditIsPublic(data.agent.is_public ?? true);
-        const settings = (data.agent.settings || {}) as AgentSettings;
-        setEditWelcomeMessage(settings.welcome_message || '');
+        setEditVisibility(data.agent.visibility || 'public');
+        setEditWelcomeMessage(data.settings?.welcome_message || '');
       }
       setLoading(false);
     }
@@ -87,9 +88,8 @@ export default function AgentDetailPage({
       body: JSON.stringify({
         name: editName,
         description: editDescription,
-        is_public: editIsPublic,
+        visibility: editVisibility,
         settings: {
-          ...agent.settings,
           welcome_message: editWelcomeMessage,
         },
       }),
@@ -98,6 +98,7 @@ export default function AgentDetailPage({
     if (response.ok) {
       const data = await response.json();
       setAgent(data.agent);
+      setAgentSettings(data.settings);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     }
@@ -121,13 +122,13 @@ export default function AgentDetailPage({
           </div>
           <p className="mt-1 text-muted-foreground">{agent.description}</p>
           <a
-            href={agent.website_url}
+            href={agent.root_url}
             target="_blank"
             rel="noopener noreferrer"
             className="mt-1 inline-flex items-center gap-1 text-sm text-primary hover:underline"
           >
             <Globe className="h-3 w-3" />
-            {agent.website_url}
+            {agent.root_url}
           </a>
         </div>
         <div className="flex gap-2 shrink-0">
@@ -166,13 +167,13 @@ export default function AgentDetailPage({
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Documents
+              Chunks
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
               <FileText className="h-4 w-4 text-muted-foreground" />
-              <span className="text-2xl font-bold">{stats.documents}</span>
+              <span className="text-2xl font-bold">{stats.chunks}</span>
             </div>
           </CardContent>
         </Card>
@@ -229,22 +230,18 @@ export default function AgentDetailPage({
             />
           </div>
 
-          <div className="flex items-center gap-3">
-            <label
-              htmlFor="is-public"
-              className="flex items-center gap-2 cursor-pointer"
+          <div className="space-y-2">
+            <Label htmlFor="visibility">Visibility</Label>
+            <select
+              id="visibility"
+              value={editVisibility}
+              onChange={(e) => setEditVisibility(e.target.value as 'public' | 'private' | 'passcode')}
+              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
-              <input
-                id="is-public"
-                type="checkbox"
-                checked={editIsPublic}
-                onChange={(e) => setEditIsPublic(e.target.checked)}
-                className="h-4 w-4 rounded border-input"
-              />
-              <span className="text-sm">
-                Public (anyone with the link can chat with this agent)
-              </span>
-            </label>
+              <option value="public">Public (anyone with the link can chat)</option>
+              <option value="private">Private (only you can access)</option>
+              <option value="passcode">Passcode Protected</option>
+            </select>
           </div>
 
           <div className="flex items-center gap-3">

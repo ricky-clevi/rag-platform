@@ -40,7 +40,7 @@ export default function NewAgentPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          website_url: targetUrl,
+          root_url: targetUrl,
           name: name || undefined,
           description: description || undefined,
         }),

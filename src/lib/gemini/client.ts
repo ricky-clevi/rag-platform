@@ -14,5 +14,7 @@ export function getGeminiClient(): GoogleGenAI {
 }
 
 export const EMBEDDING_MODEL = 'gemini-embedding-001';
-export const CHAT_MODEL = 'gemini-3-flash-preview';
-export const EMBEDDING_DIMENSIONS = 3072;
+export const DEFAULT_CHAT_MODEL = 'gemini-3.1-flash-lite-preview';
+export const ESCALATION_CHAT_MODEL = 'gemini-3.1-pro-preview';
+export const EMBEDDING_DIMENSIONS = 768;
+export const ESCALATION_CONFIDENCE_THRESHOLD = 0.4;

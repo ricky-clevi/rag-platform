@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import type { AgentStatus } from '@/types';
 
 const statusVariantMap: Record<AgentStatus, 'default' | 'secondary' | 'success' | 'destructive' | 'warning'> = {
+  draft: 'secondary',
   pending: 'secondary',
   crawling: 'warning',
   processing: 'warning',

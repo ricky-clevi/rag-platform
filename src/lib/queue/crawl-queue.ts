@@ -22,7 +22,7 @@ export function getCrawlQueue(): Queue {
 export async function addCrawlJob(data: CrawlJobData): Promise<string> {
   const queue = getCrawlQueue();
   const job = await queue.add('crawl-website', data, {
-    jobId: `crawl-${data.agent_id}`,
+    jobId: `crawl-${data.agent_id}-${Date.now()}`,
   });
   return job.id || data.agent_id;
 }

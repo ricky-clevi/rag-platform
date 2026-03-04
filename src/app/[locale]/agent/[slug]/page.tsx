@@ -11,11 +11,12 @@ export default async function PublicAgentPage({ params }: AgentPageProps) {
   const { slug } = await params;
   const supabase = createServiceClient();
 
+  // Fetch agent — visibility check: public or passcode (not private)
   const { data: agent } = await supabase
     .from('agents')
     .select('*')
     .eq('slug', slug)
-    .eq('is_public', true)
+    .in('visibility', ['public', 'passcode'])
     .single();
 
   if (!agent) {
@@ -52,8 +53,14 @@ export default async function PublicAgentPage({ params }: AgentPageProps) {
     );
   }
 
-  const settings = (agent.settings || {}) as { welcome_message?: string };
-  const domain = new URL(agent.website_url).hostname.replace('www.', '');
+  // Get agent settings for welcome message
+  const { data: agentSettings } = await supabase
+    .from('agent_settings')
+    .select('welcome_message')
+    .eq('agent_id', agent.id)
+    .single();
+
+  const domain = new URL(agent.root_url).hostname.replace('www.', '');
 
   return (
     <div className="flex h-screen flex-col">
@@ -63,7 +70,7 @@ export default async function PublicAgentPage({ params }: AgentPageProps) {
           agentId={agent.id}
           agentName={agent.name}
           companyName={domain}
-          welcomeMessage={settings.welcome_message}
+          welcomeMessage={agentSettings?.welcome_message || undefined}
         />
       </div>
     </div>

@@ -1,21 +1,29 @@
 export interface TextChunk {
   content: string;
-  metadata: {
-    source_url: string;
-    page_title: string;
-    section_heading?: string;
-    chunk_index: number;
-  };
+  heading_path: string | null;
+  chunk_index: number;
+  snippet: string | null;
+  token_count: number;
 }
 
 const TARGET_CHUNK_SIZE = 500; // ~500 tokens (roughly 2000 chars)
 const CHUNK_OVERLAP = 50; // ~50 tokens overlap (roughly 200 chars)
-const CHAR_PER_TOKEN = 4; // rough estimate
+const CHAR_PER_TOKEN = 4;
+
+function estimateTokens(text: string): number {
+  return Math.ceil(text.length / CHAR_PER_TOKEN);
+}
+
+function generateSnippet(text: string, maxLength = 200): string {
+  const clean = text.replace(/\s+/g, ' ').trim();
+  if (clean.length <= maxLength) return clean;
+  return clean.slice(0, maxLength) + '...';
+}
 
 export function chunkText(
   text: string,
-  sourceUrl: string,
-  pageTitle: string
+  _sourceUrl: string,
+  _pageTitle: string
 ): TextChunk[] {
   if (!text || text.trim().length === 0) {
     return [];
@@ -24,7 +32,6 @@ export function chunkText(
   const targetChars = TARGET_CHUNK_SIZE * CHAR_PER_TOKEN;
   const overlapChars = CHUNK_OVERLAP * CHAR_PER_TOKEN;
 
-  // First, split by headings/sections
   const sections = splitBySections(text);
   const chunks: TextChunk[] = [];
   let chunkIndex = 0;
@@ -37,16 +44,14 @@ export function chunkText(
     );
 
     for (const chunkContent of sectionChunks) {
-      if (chunkContent.trim().length < 50) continue; // Skip very small chunks
+      if (chunkContent.trim().length < 50) continue;
 
       chunks.push({
         content: chunkContent.trim(),
-        metadata: {
-          source_url: sourceUrl,
-          page_title: pageTitle,
-          section_heading: section.heading || undefined,
-          chunk_index: chunkIndex++,
-        },
+        heading_path: section.heading || null,
+        chunk_index: chunkIndex++,
+        snippet: generateSnippet(chunkContent),
+        token_count: estimateTokens(chunkContent),
       });
     }
   }
@@ -108,7 +113,6 @@ function splitBySize(
     if (currentChunk.length + paragraph.length > targetSize && currentChunk.length > 0) {
       chunks.push(currentChunk);
 
-      // Start new chunk with overlap from end of previous
       const overlap = currentChunk.slice(-overlapSize);
       currentChunk = overlap + '\n\n' + paragraph;
     } else {

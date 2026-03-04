@@ -29,13 +29,13 @@ export function AgentCard({ agent, onDelete }: AgentCardProps) {
           <div className="flex-1 min-w-0">
             <CardTitle className="truncate text-lg">{agent.name}</CardTitle>
             <a
-              href={agent.website_url}
+              href={agent.root_url}
               target="_blank"
               rel="noopener noreferrer"
               className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary"
             >
               <Globe className="h-3 w-3" />
-              <span className="truncate">{agent.website_url}</span>
+              <span className="truncate">{agent.root_url}</span>
             </a>
           </div>
           <AgentStatusBadge status={agent.status} />

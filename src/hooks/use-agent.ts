@@ -27,7 +27,7 @@ export function useAgent(agentId?: string) {
   }, []);
 
   const updateAgent = useCallback(
-    async (updates: Partial<Pick<Agent, 'name' | 'description' | 'is_public' | 'settings'>>) => {
+    async (updates: Partial<Pick<Agent, 'name' | 'description' | 'visibility'>> & { settings?: Record<string, unknown> }) => {
       const id = agentId || agent?.id;
       if (!id) return null;
 

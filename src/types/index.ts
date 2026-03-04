@@ -1,3 +1,7 @@
+// =============================================
+// Core types
+// =============================================
+
 export interface Profile {
   id: string;
   email: string;
@@ -7,22 +11,73 @@ export interface Profile {
   updated_at: string;
 }
 
-export type AgentStatus = 'pending' | 'crawling' | 'processing' | 'ready' | 'error';
+export interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  owner_id: string;
+  plan: 'free' | 'pro' | 'enterprise';
+  settings: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Membership {
+  id: string;
+  org_id: string;
+  user_id: string;
+  role: 'owner' | 'admin' | 'member';
+  created_at: string;
+}
+
+// =============================================
+// Agent types
+// =============================================
+
+export type AgentStatus = 'draft' | 'pending' | 'crawling' | 'processing' | 'ready' | 'error';
+export type AgentVisibility = 'public' | 'private' | 'passcode';
 
 export interface Agent {
   id: string;
+  org_id: string | null;
   user_id: string;
   name: string;
   slug: string;
   description: string | null;
-  website_url: string;
+  root_url: string;
   logo_url: string | null;
   status: AgentStatus;
-  is_public: boolean;
+  primary_locale: string;
+  enabled_locales: string[];
+  visibility: AgentVisibility;
+  passcode_hash: string | null;
   crawl_stats: CrawlStats;
-  settings: AgentSettings;
   created_at: string;
   updated_at: string;
+}
+
+export interface AgentSettings {
+  id: string;
+  agent_id: string;
+  system_prompt: string | null;
+  welcome_message: string | null;
+  starter_questions: string[];
+  temperature: number;
+  max_tokens: number;
+  default_model: string;
+  escalation_model: string;
+  escalation_threshold: number;
+  theme_color: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AgentDomain {
+  id: string;
+  agent_id: string;
+  domain: string;
+  is_primary: boolean;
+  created_at: string;
 }
 
 export interface CrawlStats {
@@ -32,48 +87,98 @@ export interface CrawlStats {
   errors?: number;
   started_at?: string;
   completed_at?: string;
+  error_message?: string;
 }
 
-export interface AgentSettings {
-  system_prompt?: string;
-  temperature?: number;
-  max_tokens?: number;
-  welcome_message?: string;
-  theme_color?: string;
+// =============================================
+// Share links
+// =============================================
+
+export interface ShareLink {
+  id: string;
+  agent_id: string;
+  token: string;
+  label: string | null;
+  passcode_hash: string | null;
+  expires_at: string | null;
+  max_uses: number | null;
+  use_count: number;
+  revoked_at: string | null;
+  created_by: string | null;
+  created_at: string;
 }
+
+// =============================================
+// Crawl system
+// =============================================
+
+export interface CrawlJob {
+  id: string;
+  agent_id: string;
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
+  job_type: 'full' | 'incremental' | 'single_page';
+  total_urls_discovered: number;
+  total_urls_crawled: number;
+  total_urls_skipped: number;
+  total_urls_failed: number;
+  total_chunks_created: number;
+  error_message: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+}
+
+export type PageCrawlStatus = 'pending' | 'crawled' | 'skipped' | 'blocked' | 'failed';
 
 export interface Page {
   id: string;
   agent_id: string;
+  crawl_job_id: string | null;
   url: string;
+  canonical_url: string | null;
   title: string | null;
-  content: string | null;
-  metadata: Record<string, unknown>;
-  crawled_at: string;
+  language: string;
+  status_code: number | null;
+  etag: string | null;
+  last_modified: string | null;
+  content_hash: string | null;
+  robots_allowed: boolean;
+  clean_markdown: string | null;
+  raw_html_length: number;
+  page_type: 'html' | 'pdf' | 'other';
+  crawl_status: PageCrawlStatus;
+  skip_reason: string | null;
+  last_crawled_at: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
-export interface Document {
+export interface Chunk {
   id: string;
   agent_id: string;
   page_id: string | null;
+  chunk_index: number;
+  heading_path: string | null;
   content: string;
-  metadata: DocumentMetadata;
-  embedding: number[] | null;
+  snippet: string | null;
+  language: string;
+  token_count: number;
+  rank_weight: number;
+  content_hash: string | null;
   created_at: string;
 }
 
-export interface DocumentMetadata {
-  source_url?: string;
-  page_title?: string;
-  section_heading?: string;
-  chunk_index?: number;
-}
+// =============================================
+// Chat system
+// =============================================
 
 export interface Conversation {
   id: string;
   agent_id: string;
   session_id: string;
+  share_link_id: string | null;
   title: string | null;
+  message_count: number;
   created_at: string;
   updated_at: string;
 }
@@ -81,9 +186,12 @@ export interface Conversation {
 export interface Message {
   id: string;
   conversation_id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
   sources: SourceCitation[];
+  model_used: string | null;
+  confidence: number | null;
+  token_usage: Record<string, number>;
   created_at: string;
 }
 
@@ -91,12 +199,37 @@ export interface SourceCitation {
   url: string;
   title: string;
   snippet: string;
+  heading_path?: string;
+  similarity?: number;
 }
+
+// =============================================
+// Structured chat response (from Gemini)
+// =============================================
+
+export interface StructuredAnswer {
+  answer: string;
+  citations: {
+    chunk_id: string;
+    url: string;
+    title: string;
+    excerpt: string;
+  }[];
+  confidence: number;
+  answered_from_sources_only: boolean;
+  needs_recrawl: boolean;
+}
+
+// =============================================
+// Job data
+// =============================================
 
 export interface CrawlJobData {
   agent_id: string;
-  website_url: string;
+  root_url: string;
   user_id: string;
+  crawl_job_id: string;
+  job_type: 'full' | 'incremental' | 'single_page';
 }
 
 export interface CrawlProgress {
@@ -113,11 +246,34 @@ export interface ChatRequest {
   message: string;
   conversation_id?: string;
   session_id: string;
+  share_token?: string;
 }
 
+// =============================================
+// Hybrid search results
+// =============================================
+
+export interface MatchedChunk {
+  id: string;
+  page_id: string | null;
+  content: string;
+  snippet: string | null;
+  heading_path: string | null;
+  language: string;
+  similarity: number;
+  keyword_rank: number;
+  combined_score: number;
+}
+
+// Legacy alias
 export interface MatchedDocument {
   id: string;
   content: string;
-  metadata: DocumentMetadata;
+  metadata: {
+    source_url?: string;
+    page_title?: string;
+    section_heading?: string;
+    chunk_index?: number;
+  };
   similarity: number;
 }

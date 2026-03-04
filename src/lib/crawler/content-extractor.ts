@@ -17,6 +17,8 @@ export interface ExtractedContent {
   text: string;
   links: string[];
   description: string;
+  canonical: string | null;
+  language: string;
 }
 
 export function extractContent(html: string, baseUrl: string): ExtractedContent {
@@ -40,8 +42,13 @@ export function extractContent(html: string, baseUrl: string): ExtractedContent 
     $('meta[property="og:description"]').attr('content') ||
     '';
 
+  // Extract canonical URL
+  const canonical = $('link[rel="canonical"]').attr('href') || null;
+
+  // Extract language
+  const language = $('html').attr('lang')?.split('-')[0] || 'en';
+
   // Extract main content
-  // Try semantic elements first
   let mainContent = $('main, article, [role="main"]');
   if (mainContent.length === 0) {
     mainContent = $('body');
@@ -83,5 +90,5 @@ export function extractContent(html: string, baseUrl: string): ExtractedContent 
     }
   });
 
-  return { title, text, links, description };
+  return { title, text, links, description, canonical, language };
 }
