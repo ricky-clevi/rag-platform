@@ -82,7 +82,8 @@ async function checkAndTriggerRecrawls() {
           },
           {
             jobId: `crawl-${agent.id}-${Date.now()}`,
-            attempts: 1,
+            attempts: 3,
+            backoff: { type: 'exponential', delay: 5000 },
             removeOnComplete: { count: 100 },
             removeOnFail: { count: 50 },
           }
@@ -126,13 +127,22 @@ async function runScheduler() {
   await checkAndTriggerRecrawls();
 
   // Then poll at interval
-  setInterval(async () => {
+  const intervalId = setInterval(async () => {
     try {
       await checkAndTriggerRecrawls();
     } catch (error) {
       console.error('Scheduler error:', error);
     }
   }, POLL_INTERVAL_MS);
+
+  // Graceful shutdown
+  const shutdown = () => {
+    console.log('Recrawl scheduler shutting down...');
+    clearInterval(intervalId);
+    process.exit(0);
+  };
+  process.on('SIGTERM', shutdown);
+  process.on('SIGINT', shutdown);
 }
 
 runScheduler().catch(console.error);

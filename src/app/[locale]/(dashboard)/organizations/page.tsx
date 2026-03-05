@@ -46,10 +46,11 @@ export default function OrganizationsPage() {
   async function fetchOrgs() {
     try {
       const res = await fetch('/api/organizations');
+      if (!res.ok) throw new Error('Failed to load organizations');
       const data = await res.json();
       setOrgs(data.organizations || []);
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error('Failed to fetch organizations:', err);
     } finally {
       setLoading(false);
     }
@@ -58,9 +59,11 @@ export default function OrganizationsPage() {
   async function fetchMembers(orgId: string) {
     try {
       const res = await fetch(`/api/organizations/${orgId}/members`);
+      if (!res.ok) throw new Error('Failed to load members');
       const data = await res.json();
       setMembers(data.members || []);
-    } catch {
+    } catch (err) {
+      console.error('Failed to fetch members:', err);
       setMembers([]);
     }
   }

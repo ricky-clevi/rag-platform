@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import bcrypt from 'bcryptjs';
+import { recordAuditLog } from '@/lib/usage-logger';
 
 // GET /api/agents/[id] - Get agent details
 export async function GET(
@@ -64,7 +65,7 @@ export async function PATCH(
 
   const { data: existingAgent } = await supabase
     .from('agents')
-    .select('id, visibility, passcode_hash')
+    .select('id, visibility')
     .eq('id', id)
     .eq('user_id', user.id)
     .single();
@@ -91,11 +92,20 @@ export async function PATCH(
         return NextResponse.json({ error: 'Passcode must be at least 4 characters' }, { status: 400 });
       }
       agentUpdates.passcode_hash = await bcrypt.hash(passcode.trim(), 10);
-    } else if (!existingAgent.passcode_hash) {
-      return NextResponse.json(
-        { error: 'Passcode is required when enabling passcode protection' },
-        { status: 400 }
-      );
+    } else {
+      // Check if passcode hash already exists when enabling protection without providing new passcode
+      const { data: withHash } = await supabase
+        .from('agents')
+        .select('passcode_hash')
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .single();
+      if (!withHash?.passcode_hash) {
+        return NextResponse.json(
+          { error: 'Passcode is required when enabling passcode protection' },
+          { status: 400 }
+        );
+      }
     }
   } else if (visibility !== undefined && visibility !== 'passcode') {
     // Remove stale passcode when passcode protection is turned off.
@@ -170,6 +180,13 @@ export async function DELETE(
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  recordAuditLog({
+    user_id: user.id,
+    agent_id: id,
+    action: 'agent_deleted',
+    details: {},
+  });
 
   return NextResponse.json({ success: true });
 }

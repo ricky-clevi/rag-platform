@@ -38,12 +38,11 @@ export default function DiffPage({ params }: { params: Promise<{ id: string }> }
   async function fetchPages() {
     try {
       const res = await fetch(`/api/agents/${id}/pages?status=crawled`);
-      if (res.ok) {
-        const data = await res.json();
-        setPages(data.pages || []);
-      }
-    } catch {
-      // ignore
+      if (!res.ok) throw new Error('Failed to load pages');
+      const data = await res.json();
+      setPages(data.pages || []);
+    } catch (err) {
+      console.error('Failed to fetch pages:', err);
     } finally {
       setLoading(false);
     }
@@ -55,12 +54,11 @@ export default function DiffPage({ params }: { params: Promise<{ id: string }> }
     setDiffResult(null);
     try {
       const res = await fetch(`/api/agents/${id}/diff?page_id=${pageId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setDiffResult(data);
-      }
-    } catch {
-      // ignore
+      if (!res.ok) throw new Error('Failed to load diff');
+      const data = await res.json();
+      setDiffResult(data);
+    } catch (err) {
+      console.error('Failed to load diff:', err);
     } finally {
       setLoadingDiff(false);
     }

@@ -6,6 +6,7 @@ import {
   getPasscodeSessionCookieName,
   getPasscodeSessionTtlSeconds,
 } from '@/lib/security/passcode-session';
+import { checkRateLimit, getClientIp, RATE_LIMITS } from '@/lib/rate-limiter';
 
 // POST /api/agents/[id]/verify-passcode - Verify passcode for a protected agent
 export async function POST(
@@ -13,6 +14,24 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+
+  // Rate limit passcode attempts: 5 per minute per IP+agent
+  const ip = getClientIp(request);
+  const rateLimitResult = checkRateLimit(`passcode:${ip}:${id}`, {
+    maxRequests: 5,
+    windowMs: 60_000,
+    blockDurationMs: 300_000, // 5-minute block after exceeding
+  });
+  if (!rateLimitResult.allowed) {
+    return NextResponse.json(
+      { error: 'Too many attempts. Please try again later.' },
+      {
+        status: 429,
+        headers: { 'Retry-After': String(Math.ceil((rateLimitResult.retryAfterMs || 60_000) / 1000)) },
+      }
+    );
+  }
+
   const supabase = createServiceClient();
 
   const { passcode } = await request.json();

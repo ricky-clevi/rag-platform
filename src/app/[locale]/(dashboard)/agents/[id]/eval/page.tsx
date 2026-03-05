@@ -45,11 +45,12 @@ export default function EvalPage({ params }: { params: Promise<{ id: string }> }
   async function fetchEvalData() {
     try {
       const res = await fetch(`/api/agents/${id}/eval`);
+      if (!res.ok) throw new Error('Failed to load eval data');
       const data = await res.json();
       setEvalCases(data.eval_dataset || []);
       setRecentRuns(data.recent_results || []);
-    } catch {
-      // ignore
+    } catch (err) {
+      console.error('Failed to fetch eval data:', err);
     } finally {
       setLoading(false);
     }

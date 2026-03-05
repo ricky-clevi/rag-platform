@@ -18,6 +18,8 @@ export function CitationDrawer({ sources }: CitationDrawerProps) {
       {/* Header / Toggle */}
       <button
         onClick={() => setIsOpen(!isOpen)}
+        aria-expanded={isOpen}
+        aria-label={`${sources.length} source${sources.length !== 1 ? 's' : ''}`}
         className="flex w-full items-center justify-between px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
       >
         <span className="flex items-center gap-1.5">

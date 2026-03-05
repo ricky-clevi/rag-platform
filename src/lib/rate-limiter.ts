@@ -116,14 +116,20 @@ export const RATE_LIMITS = {
 
 /**
  * Extract client IP from request headers.
+ * WARNING: x-forwarded-for and x-real-ip are only trustworthy behind a
+ * trusted reverse proxy (e.g., Vercel, Cloudflare, nginx). If running
+ * without a proxy, these headers can be spoofed by clients.
  */
 export function getClientIp(request: Request): string {
   const forwarded = request.headers.get('x-forwarded-for');
   if (forwarded) {
-    return forwarded.split(',')[0].trim();
+    // Take only the first (leftmost) IP — the one set by the trusted proxy
+    const ip = forwarded.split(',')[0].trim();
+    // Basic validation: must look like an IP address
+    if (/^[\d.:a-fA-F]+$/.test(ip)) return ip;
   }
   const realIp = request.headers.get('x-real-ip');
-  if (realIp) return realIp;
+  if (realIp && /^[\d.:a-fA-F]+$/.test(realIp)) return realIp;
   return '127.0.0.1';
 }
 

@@ -7,11 +7,15 @@ import { recordAuditLog } from '@/lib/usage-logger';
  * Worker status callbacks for crawl job progress and completion.
  */
 export async function POST(request: NextRequest) {
-  // Verify webhook secret
-  const authHeader = request.headers.get('authorization');
+  // Verify webhook secret (REQUIRED — reject if not configured)
   const webhookSecret = process.env.WEBHOOK_SECRET;
+  if (!webhookSecret) {
+    console.error('WEBHOOK_SECRET is not configured — rejecting webhook request');
+    return NextResponse.json({ error: 'Webhook not configured' }, { status: 500 });
+  }
 
-  if (webhookSecret && authHeader !== `Bearer ${webhookSecret}`) {
+  const authHeader = request.headers.get('authorization');
+  if (authHeader !== `Bearer ${webhookSecret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

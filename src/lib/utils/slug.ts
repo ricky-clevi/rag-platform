@@ -10,6 +10,8 @@ export function generateSlug(name: string): string {
 
 export function generateUniqueSlug(name: string): string {
   const base = generateSlug(name);
-  const suffix = Math.random().toString(36).substring(2, 8);
+  const bytes = new Uint8Array(4);
+  crypto.getRandomValues(bytes);
+  const suffix = Array.from(bytes).map(b => b.toString(36)).join('').slice(0, 8);
   return `${base}-${suffix}`;
 }

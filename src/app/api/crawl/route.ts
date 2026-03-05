@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { addCrawlJob } from '@/lib/queue/crawl-queue';
+import { checkRateLimit, getClientIp, RATE_LIMITS } from '@/lib/rate-limiter';
 
 // POST /api/crawl - Re-trigger crawl for an agent
 export async function POST(request: NextRequest) {
@@ -10,6 +11,16 @@ export async function POST(request: NextRequest) {
 
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Rate limit crawl triggers
+  const ip = getClientIp(request);
+  const rateResult = checkRateLimit(`crawl:${ip}`, RATE_LIMITS.crawlTrigger);
+  if (!rateResult.allowed) {
+    return NextResponse.json(
+      { error: 'Too many crawl requests. Please try again later.' },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil((rateResult.retryAfterMs || 3600000) / 1000)) } }
+    );
   }
 
   const { agent_id, job_type = 'full' } = await request.json();

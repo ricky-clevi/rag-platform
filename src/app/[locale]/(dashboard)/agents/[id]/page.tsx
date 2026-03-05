@@ -136,20 +136,36 @@ export default function AgentDetailPage({
 
   const handleCopyLink = async () => {
     if (!agent) return;
-    const shareUrl = `${window.location.origin}/agent/${agent.slug}`;
-    await navigator.clipboard.writeText(shareUrl);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      const shareUrl = `${window.location.origin}/agent/${agent.slug}`;
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard API may not be available in insecure contexts
+    }
   };
+
+  const [recrawlError, setRecrawlError] = useState('');
 
   const handleReCrawl = async () => {
     if (!agent) return;
-    await fetch('/api/crawl', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ agent_id: agent.id }),
-    });
-    window.location.reload();
+    setRecrawlError('');
+    try {
+      const response = await fetch('/api/crawl', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agent_id: agent.id }),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        setRecrawlError(data.error || t('recrawlFailed'));
+        return;
+      }
+      window.location.reload();
+    } catch {
+      setRecrawlError(t('recrawlFailed'));
+    }
   };
 
   const handleSaveSettings = async () => {
@@ -184,7 +200,7 @@ export default function AgentDetailPage({
   };
 
   if (loading) return <FullPageLoader />;
-  if (!agent) return <div>Agent not found</div>;
+  if (!agent) return <div>{tCommon('noResults')}</div>;
 
   const shareUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/agent/${agent.slug}`;
 
@@ -213,7 +229,7 @@ export default function AgentDetailPage({
             <Button asChild>
               <Link href={`/agent/${agent.slug}`}>
                 <MessageSquare className="mr-2 h-4 w-4" />
-                Chat
+                {t('chat')}
               </Link>
             </Button>
           )}
@@ -221,6 +237,12 @@ export default function AgentDetailPage({
             <RefreshCw className="mr-2 h-4 w-4" />
             {t('rebuild')}
           </Button>
+          {recrawlError && (
+            <p className="text-sm text-destructive flex items-center gap-1">
+              <AlertCircle className="h-4 w-4" />
+              {recrawlError}
+            </p>
+          )}
         </div>
       </div>
 
@@ -244,7 +266,7 @@ export default function AgentDetailPage({
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Chunks
+              {t('chunks')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -257,7 +279,7 @@ export default function AgentDetailPage({
         <Card className="col-span-2 md:col-span-1">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Status
+              {t('status')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -278,7 +300,7 @@ export default function AgentDetailPage({
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="agent-name">Agent Name</Label>
+            <Label htmlFor="agent-name">{t('agentName')}</Label>
             <Input
               id="agent-name"
               value={editName}
@@ -287,7 +309,7 @@ export default function AgentDetailPage({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="agent-description">Description</Label>
+            <Label htmlFor="agent-description">{t('description')}</Label>
             <Input
               id="agent-description"
               value={editDescription}
@@ -296,43 +318,44 @@ export default function AgentDetailPage({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="welcome-message">Welcome Message</Label>
+            <Label htmlFor="welcome-message">{t('welcomeMessage')}</Label>
             <textarea
               id="welcome-message"
               value={editWelcomeMessage}
               onChange={(e) => setEditWelcomeMessage(e.target.value)}
               rows={3}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              placeholder="Hello! Ask me anything about this company..."
+              placeholder={t('welcomePlaceholder')}
             />
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="visibility">Visibility</Label>
+            <Label htmlFor="visibility">{t('visibility')}</Label>
             <select
               id="visibility"
               value={editVisibility}
               onChange={(e) => setEditVisibility(e.target.value as 'public' | 'private' | 'passcode')}
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             >
-              <option value="public">Public (anyone with the link can chat)</option>
-              <option value="private">Private (only you can access)</option>
-              <option value="passcode">Passcode Protected</option>
+              <option value="public">{t('visibilityPublic')}</option>
+              <option value="private">{t('visibilityPrivate')}</option>
+              <option value="passcode">{t('visibilityPasscode')}</option>
             </select>
           </div>
 
           {editVisibility === 'passcode' && (
             <div className="space-y-2">
-              <Label htmlFor="passcode">Passcode</Label>
+              <Label htmlFor="passcode">{t('passcode')}</Label>
               <Input
                 id="passcode"
                 type="password"
                 value={editPasscode}
                 onChange={(e) => setEditPasscode(e.target.value)}
-                placeholder="Enter a new passcode (min 4 chars)"
+                placeholder={t('passcodePlaceholder')}
+                minLength={4}
               />
               <p className="text-xs text-muted-foreground">
-                Leave blank to keep the existing passcode.
+                {t('passcodeHint')}
               </p>
             </div>
           )}
@@ -349,7 +372,7 @@ export default function AgentDetailPage({
             {saveSuccess && (
               <span className="text-sm text-green-600 flex items-center gap-1">
                 <Check className="h-4 w-4" />
-                Saved!
+                {t('saved')}
               </span>
             )}
           </div>
@@ -391,7 +414,7 @@ export default function AgentDetailPage({
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <Sparkles className="h-5 w-5" />
-            Starter Questions
+            {t('starterQuestions')}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -402,11 +425,11 @@ export default function AgentDetailPage({
               ))}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">No starter questions configured.</p>
+            <p className="text-sm text-muted-foreground">{t('noStarters')}</p>
           )}
           <Button variant="outline" size="sm" onClick={handleGenerateStarters} disabled={generatingStarters}>
             <Sparkles className="mr-1 h-3 w-3" />
-            {generatingStarters ? 'Generating...' : 'Auto-generate with AI'}
+            {generatingStarters ? t('generating') : t('autoGenerate')}
           </Button>
         </CardContent>
       </Card>
@@ -416,7 +439,7 @@ export default function AgentDetailPage({
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <Clock className="h-5 w-5" />
-            Scheduled Recrawl
+            {t('scheduledRecrawl')}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -428,36 +451,36 @@ export default function AgentDetailPage({
                 onChange={(e) => setRecrawlEnabled(e.target.checked)}
                 className="rounded"
               />
-              <span className="text-sm">Enable automatic recrawl</span>
+              <span className="text-sm">{t('enableRecrawl')}</span>
             </label>
           </div>
 
           {recrawlEnabled && (
             <div className="space-y-2">
-              <Label>Frequency</Label>
+              <Label>{t('frequency')}</Label>
               <select
                 value={recrawlFrequency}
                 onChange={(e) => setRecrawlFrequency(parseInt(e.target.value))}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               >
-                <option value={24}>Every day</option>
-                <option value={72}>Every 3 days</option>
-                <option value={168}>Every week</option>
-                <option value={336}>Every 2 weeks</option>
-                <option value={720}>Every month</option>
+                <option value={24}>{t('everyDay')}</option>
+                <option value={72}>{t('every3Days')}</option>
+                <option value={168}>{t('everyWeek')}</option>
+                <option value={336}>{t('every2Weeks')}</option>
+                <option value={720}>{t('everyMonth')}</option>
               </select>
             </div>
           )}
 
           {recrawlPolicy?.next_run_at && recrawlPolicy.enabled && (
             <p className="text-xs text-muted-foreground">
-              Next run: {new Date(recrawlPolicy.next_run_at).toLocaleString()}
+              {t('nextRun', { date: new Date(recrawlPolicy.next_run_at).toLocaleString() })}
             </p>
           )}
 
           <Button variant="outline" size="sm" onClick={handleSaveRecrawlPolicy}>
             <Save className="mr-1 h-3 w-3" />
-            Save Schedule
+            {t('saveSchedule')}
           </Button>
         </CardContent>
       </Card>
@@ -468,9 +491,9 @@ export default function AgentDetailPage({
           <CardTitle className="flex items-center justify-between text-lg">
             <span className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
-              Crawl Report
+              {t('crawlReport')}
             </span>
-            <Button variant="ghost" size="sm" onClick={() => setShowPages(!showPages)}>
+            <Button variant="ghost" size="sm" onClick={() => setShowPages(!showPages)} aria-label={t('toggleCrawlReport')} aria-expanded={showPages}>
               {showPages ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </Button>
           </CardTitle>
@@ -516,7 +539,7 @@ export default function AgentDetailPage({
                   </div>
                 ))
               ) : (
-                <p className="text-sm text-muted-foreground text-center py-4">No pages found.</p>
+                <p className="text-sm text-muted-foreground text-center py-4">{t('noPagesFound')}</p>
               )}
             </div>
           </CardContent>
@@ -528,7 +551,7 @@ export default function AgentDetailPage({
         <Button asChild variant="outline" size="sm">
           <Link href={`/agents/${id}/analytics`}>
             <BarChart3 className="mr-1 h-3 w-3" />
-            Analytics
+            {t('analytics')}
           </Link>
         </Button>
       </div>

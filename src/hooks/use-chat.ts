@@ -24,7 +24,7 @@ export function useChat(agentId: string, shareToken?: string) {
 
   const sendMessage = useCallback(
     async (content: string) => {
-      if (!content.trim() || isLoading) return;
+      if (!content.trim()) return;
 
       const userMessage: ChatMessage = {
         id: uuidv4(),
@@ -156,7 +156,7 @@ export function useChat(agentId: string, shareToken?: string) {
         setIsLoading(false);
       }
     },
-    [agentId, conversationId, isLoading, shareToken]
+    [agentId, conversationId, shareToken]
   );
 
   const resetChat = useCallback(() => {

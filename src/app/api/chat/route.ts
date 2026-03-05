@@ -35,7 +35,23 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const body = await request.json();
+  const contentType = request.headers.get('content-type');
+  if (!contentType?.includes('application/json')) {
+    return new Response(JSON.stringify({ error: 'Content-Type must be application/json' }), {
+      status: 415,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  let body: { agent_id?: string; message?: string; conversation_id?: string; session_id?: string; share_token?: string };
+  try {
+    body = await request.json();
+  } catch {
+    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
   const { agent_id, message, conversation_id, session_id, share_token } = body;
 
   if (!agent_id || !message || !session_id) {
@@ -186,11 +202,19 @@ export async function POST(request: NextRequest) {
       if (validShareLink) {
         insertData.share_link_id = validShareLink.id;
 
-        // Increment use count (#16) once per conversation creation.
-        await supabase
-          .from('share_links')
-          .update({ use_count: validShareLink.use_count + 1 })
-          .eq('id', validShareLink.id);
+        // Increment use count atomically (#16) once per conversation creation.
+        // Use raw SQL via RPC for atomic increment to avoid read-modify-write race
+        await supabase.rpc('increment_counter', {
+          table_name: 'share_links',
+          row_id: validShareLink.id,
+          column_name: 'use_count',
+        }).then(null, () => {
+          // Fallback if RPC doesn't exist yet
+          return supabase
+            .from('share_links')
+            .update({ use_count: (validShareLink!.use_count || 0) + 1 })
+            .eq('id', validShareLink!.id);
+        });
       }
       const { data: conv } = await supabase
         .from('conversations')
@@ -376,9 +400,9 @@ export async function POST(request: NextRequest) {
             controller.enqueue(encoder.encode('data: [DONE]\n\n'));
             controller.close();
           } catch (streamError) {
-            const errorMsg = streamError instanceof Error ? streamError.message : 'Stream error';
+            console.error('Chat stream error:', streamError);
             controller.enqueue(
-              encoder.encode(`data: ${JSON.stringify({ type: 'error', content: errorMsg })}\n\n`)
+              encoder.encode(`data: ${JSON.stringify({ type: 'error', content: 'An error occurred while generating the response.' })}\n\n`)
             );
             controller.close();
           }
@@ -394,8 +418,9 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
+    console.error('Chat route error:', error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Internal error' }),
+      JSON.stringify({ error: 'Internal error' }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }

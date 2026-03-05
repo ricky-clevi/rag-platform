@@ -74,7 +74,8 @@ export async function crawlPageBrowser(
     const extracted = extractContent(html, url);
 
     return extracted;
-  } catch {
+  } catch (error) {
+    console.error(`Browser crawl failed for ${url}:`, error instanceof Error ? error.message : error);
     return null;
   } finally {
     if (browser) {

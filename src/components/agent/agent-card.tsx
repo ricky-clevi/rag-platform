@@ -15,9 +15,10 @@ interface AgentCardProps {
 
 export function AgentCard({ agent, onDelete }: AgentCardProps) {
   const t = useTranslations('agents.card');
+  const tCommon = useTranslations('common');
 
   const handleDelete = async () => {
-    if (!confirm('Are you sure?')) return;
+    if (!confirm(tCommon('confirmDelete'))) return;
     await fetch(`/api/agents/${agent.id}`, { method: 'DELETE' });
     onDelete?.(agent.id);
   };
@@ -71,6 +72,7 @@ export function AgentCard({ agent, onDelete }: AgentCardProps) {
           variant="ghost"
           className="ml-auto text-destructive hover:text-destructive"
           onClick={handleDelete}
+          aria-label={`Delete ${agent.name}`}
         >
           <Trash2 className="h-3 w-3" />
         </Button>

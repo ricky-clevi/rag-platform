@@ -31,7 +31,31 @@ export function isSameDomain(url: string, baseUrl: string): boolean {
 export function isValidUrl(url: string): boolean {
   try {
     const parsed = new URL(url.startsWith('http') ? url : `https://${url}`);
-    return ['http:', 'https:'].includes(parsed.protocol);
+    if (!['http:', 'https:'].includes(parsed.protocol)) return false;
+
+    // SSRF protection: block internal/private network addresses
+    const hostname = parsed.hostname.toLowerCase();
+    if (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '0.0.0.0' ||
+      hostname === '::1' ||
+      hostname === '[::1]' ||
+      hostname.endsWith('.local') ||
+      hostname.endsWith('.internal') ||
+      // Block private IP ranges
+      /^10\./.test(hostname) ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(hostname) ||
+      /^192\.168\./.test(hostname) ||
+      /^169\.254\./.test(hostname) ||
+      // Block cloud metadata endpoints
+      hostname === '169.254.169.254' ||
+      hostname === 'metadata.google.internal'
+    ) {
+      return false;
+    }
+
+    return true;
   } catch {
     return false;
   }

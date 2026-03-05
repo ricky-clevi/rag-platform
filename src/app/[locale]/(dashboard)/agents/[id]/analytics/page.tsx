@@ -29,9 +29,9 @@ export default function AnalyticsPage({ params }: { params: Promise<{ id: string
 
   useEffect(() => {
     fetch(`/api/agents/${id}/analytics?days=30`)
-      .then((r) => r.ok ? r.json() : null)
+      .then((r) => r.ok ? r.json() : Promise.reject(new Error('Failed to load')))
       .then((d) => { setData(d); setLoading(false); })
-      .catch(() => setLoading(false));
+      .catch(() => { setData(null); setLoading(false); });
   }, [id]);
 
   if (loading) return <div className="p-8 text-center text-muted-foreground">Loading analytics...</div>;

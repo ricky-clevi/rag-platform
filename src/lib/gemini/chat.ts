@@ -6,6 +6,11 @@ import {
 } from './client';
 import type { MatchedChunk, StructuredAnswer } from '@/types';
 
+/** Sanitize user-controlled values before embedding in prompts */
+function sanitizePromptValue(value: string): string {
+  return value.replace(/["\\\n\r]/g, ' ').slice(0, 200).trim();
+}
+
 function buildSystemPrompt(
   agentName: string,
   rootUrl: string,
@@ -19,8 +24,11 @@ function buildSystemPrompt(
     )
     .join('\n\n---\n\n');
 
+  const safeName = sanitizePromptValue(agentName);
+  const safeUrl = sanitizePromptValue(rootUrl);
+
   const basePrompt = customSystemPrompt
-    || `You are "${agentName}", an AI assistant with deep knowledge about the company found at ${rootUrl}.`;
+    || `You are "${safeName}", an AI assistant with deep knowledge about the company found at ${safeUrl}.`;
 
   return `${basePrompt}
 
@@ -66,6 +74,8 @@ Rules:
 - If confidence is below 0.3, set answer to explain that you couldn't find sufficient information`;
 }
 
+const CHAT_TIMEOUT_MS = 60_000;
+
 async function callModel(
   model: string,
   systemPrompt: string,
@@ -75,16 +85,21 @@ async function callModel(
 ): Promise<string> {
   const client = getGeminiClient();
 
-  const response = await client.models.generateContent({
-    model,
-    contents,
-    config: {
-      systemInstruction: systemPrompt,
-      temperature,
-      maxOutputTokens: maxTokens,
-      responseMimeType: 'application/json',
-    },
-  });
+  const response = await Promise.race([
+    client.models.generateContent({
+      model,
+      contents,
+      config: {
+        systemInstruction: systemPrompt,
+        temperature,
+        maxOutputTokens: maxTokens,
+        responseMimeType: 'application/json',
+      },
+    }),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Chat model request timed out')), CHAT_TIMEOUT_MS)
+    ),
+  ]);
 
   return response.text || '';
 }
@@ -195,8 +210,11 @@ export async function* streamChatResponse(
     )
     .join('\n\n---\n\n');
 
+  const safeName = sanitizePromptValue(agentName);
+  const safeUrl = sanitizePromptValue(rootUrl);
+
   const basePrompt = customSystemPrompt
-    || `You are "${agentName}", an AI assistant with deep knowledge about the company found at ${rootUrl}.`;
+    || `You are "${safeName}", an AI assistant with deep knowledge about the company found at ${safeUrl}.`;
 
   const systemPrompt = `${basePrompt}
 
@@ -231,15 +249,20 @@ Rules:
     },
   ];
 
-  const response = await client.models.generateContentStream({
-    model,
-    contents,
-    config: {
-      systemInstruction: systemPrompt,
-      temperature,
-      maxOutputTokens: maxTokens,
-    },
-  });
+  const response = await Promise.race([
+    client.models.generateContentStream({
+      model,
+      contents,
+      config: {
+        systemInstruction: systemPrompt,
+        temperature,
+        maxOutputTokens: maxTokens,
+      },
+    }),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Stream request timed out')), CHAT_TIMEOUT_MS)
+    ),
+  ]);
 
   for await (const chunk of response) {
     if (chunk.text) {

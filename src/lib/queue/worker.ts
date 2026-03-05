@@ -244,45 +244,51 @@ async function processCrawlJob(job: Job<CrawlJobData>) {
         // Progress updates handled in onPageCrawled
       },
 
-      onError: (url, error) => {
+      onError: async (url, error) => {
         totalFailed++;
         console.error(`Crawl error for ${url}: ${error}`);
 
         // Store failed page record (#5)
-        supabase
-          .from('pages')
-          .upsert(
-            {
-              agent_id,
-              crawl_job_id: crawl_job_id || null,
-              url,
-              crawl_status: 'failed',
-              skip_reason: error,
-              last_crawled_at: new Date().toISOString(),
-            },
-            { onConflict: 'agent_id,url' }
-          )
-          .then(() => {});
+        try {
+          await supabase
+            .from('pages')
+            .upsert(
+              {
+                agent_id,
+                crawl_job_id: crawl_job_id || null,
+                url,
+                crawl_status: 'failed',
+                skip_reason: error,
+                last_crawled_at: new Date().toISOString(),
+              },
+              { onConflict: 'agent_id,url' }
+            );
+        } catch (dbError) {
+          console.error(`Failed to record error page ${url}:`, dbError);
+        }
       },
 
-      onPageSkipped: (url, reason) => {
+      onPageSkipped: async (url, reason) => {
         totalSkipped++;
 
         // Store skipped/blocked page record (#5)
-        supabase
-          .from('pages')
-          .upsert(
-            {
-              agent_id,
-              crawl_job_id: crawl_job_id || null,
-              url,
-              crawl_status: reason === 'robots.txt' ? 'blocked' : 'skipped',
-              skip_reason: reason,
-              last_crawled_at: new Date().toISOString(),
-            },
-            { onConflict: 'agent_id,url' }
-          )
-          .then(() => {});
+        try {
+          await supabase
+            .from('pages')
+            .upsert(
+              {
+                agent_id,
+                crawl_job_id: crawl_job_id || null,
+                url,
+                crawl_status: reason === 'robots.txt' ? 'blocked' : 'skipped',
+                skip_reason: reason,
+                last_crawled_at: new Date().toISOString(),
+              },
+              { onConflict: 'agent_id,url' }
+            );
+        } catch (dbError) {
+          console.error(`Failed to record skipped page ${url}:`, dbError);
+        }
       },
     }, { existingPages, jobType: job_type, allowedDomains });
 

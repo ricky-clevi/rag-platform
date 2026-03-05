@@ -15,7 +15,9 @@ export default async function middleware(request: NextRequest) {
   // e.g., acme.yourdomain.com → /en/agent/acme
   if (hostname !== appHost && !hostname.startsWith('localhost') && !hostname.startsWith('127.')) {
     const subdomain = hostname.split('.')[0];
-    if (subdomain && subdomain !== 'www' && subdomain !== appHost.split('.')[0]) {
+    // Validate subdomain format: alphanumeric + hyphens, 1-63 chars, no leading/trailing hyphens
+    const isValidSubdomain = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/i.test(subdomain);
+    if (isValidSubdomain && subdomain !== 'www' && subdomain !== appHost.split('.')[0]) {
       const pathname = request.nextUrl.pathname;
       if (!pathname.startsWith('/api') && !pathname.startsWith('/_next') && !pathname.includes('/agent/')) {
         const locale = pathname.split('/')[1];

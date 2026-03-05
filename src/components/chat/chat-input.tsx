@@ -41,6 +41,7 @@ export function ChatInput({
           placeholder={placeholder}
           disabled={disabled}
           rows={1}
+          aria-label="Chat message"
           className="w-full resize-none bg-transparent px-4 py-3 text-sm outline-none placeholder:text-muted-foreground disabled:opacity-50"
           style={{ maxHeight: '150px' }}
           onInput={(e) => {
@@ -55,6 +56,7 @@ export function ChatInput({
         size="icon"
         disabled={disabled || !input.trim()}
         className="shrink-0 rounded-xl"
+        aria-label="Send message"
       >
         <Send className="h-4 w-4" />
       </Button>

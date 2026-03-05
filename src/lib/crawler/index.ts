@@ -87,6 +87,7 @@ function parseSitemapDirectives(robotsTxt: string): string[] {
 
 async function discoverSitemapUrls(baseUrl: string, robotsTxt?: string | null): Promise<string[]> {
   const urls: string[] = [];
+  const fetchedSitemaps = new Set<string>();
 
   // Start with sitemaps declared in robots.txt (#8)
   const declaredSitemaps = robotsTxt ? parseSitemapDirectives(robotsTxt) : [];
@@ -102,6 +103,9 @@ async function discoverSitemapUrls(baseUrl: string, robotsTxt?: string | null): 
   const uniqueSources = [...new Set(sitemapSources)];
 
   for (const sitemapUrl of uniqueSources) {
+    if (fetchedSitemaps.has(sitemapUrl)) continue;
+    fetchedSitemaps.add(sitemapUrl);
+
     try {
       const response = await fetch(sitemapUrl, {
         headers: { 'User-Agent': USER_AGENT },
@@ -119,6 +123,8 @@ async function discoverSitemapUrls(baseUrl: string, robotsTxt?: string | null): 
         for (const match of locMatches) {
           const loc = match[1].trim();
           if (loc.includes('sitemap') && loc.endsWith('.xml')) {
+            if (fetchedSitemaps.has(loc)) continue;
+            fetchedSitemaps.add(loc);
             try {
               const subResponse = await fetch(loc, {
                 headers: { 'User-Agent': USER_AGENT },
@@ -200,6 +206,7 @@ export async function crawlWebsite(
 ): Promise<{ totalPages: number; totalChunks: number; errors: number; skipped: number; skippedPages: SkippedPage[] }> {
   const normalizedStart = normalizeUrl(startUrl);
   const visited = new Set<string>();
+  const queued = new Set<string>([normalizedStart]);
   const queue: string[] = [normalizedStart];
   let totalChunks = 0;
   let errors = 0;
@@ -207,6 +214,7 @@ export async function crawlWebsite(
   const skippedPages: SkippedPage[] = [];
 
   const DELAY_MS = 500;
+  const MAX_PAGES = 5000;
   const allowedDomains = options.allowedDomains || [];
 
   // Fetch and parse robots.txt
@@ -219,10 +227,12 @@ export async function crawlWebsite(
   for (const sitemapUrl of sitemapUrls) {
     const normalized = normalizeUrl(sitemapUrl);
     if (
+      !queued.has(normalized) &&
       isInDomainScope(normalized, normalizedStart, allowedDomains) &&
       !shouldSkipUrl(normalized, { allowPdf: true })
     ) {
       queue.push(normalized);
+      queued.add(normalized);
     }
   }
 
@@ -336,9 +346,10 @@ export async function crawlWebsite(
 
         // Discover new URLs from links (#6 — domain-aware)
         for (const link of content.links) {
+          if (queued.size >= MAX_PAGES) break;
           const normalizedLink = normalizeUrl(link);
           if (
-            !visited.has(normalizedLink) &&
+            !queued.has(normalizedLink) &&
             isInDomainScope(normalizedLink, normalizedStart, allowedDomains) &&
             !shouldSkipUrl(normalizedLink, { allowPdf: true })
           ) {
@@ -346,6 +357,7 @@ export async function crawlWebsite(
               continue;
             }
             queue.push(normalizedLink);
+            queued.add(normalizedLink);
           }
         }
       }
