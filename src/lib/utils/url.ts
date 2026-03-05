@@ -46,17 +46,26 @@ export function extractDomain(url: string): string {
   }
 }
 
-export function shouldSkipUrl(url: string): boolean {
+export function shouldSkipUrl(url: string, options?: { allowPdf?: boolean }): boolean {
   const skipExtensions = [
-    '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+    '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
     '.zip', '.tar', '.gz', '.rar',
     '.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp', '.ico',
     '.mp3', '.mp4', '.avi', '.mov', '.wmv',
     '.css', '.js', '.json', '.xml', '.rss',
   ];
 
+  // PDF is skipped unless explicitly allowed
+  if (!options?.allowPdf) {
+    skipExtensions.push('.pdf');
+  }
+
   const skipPatterns = [
     '/wp-admin', '/wp-login', '/feed', '/rss',
+    '/login', '/signin', '/signup', '/register',
+    '/account', '/cart', '/checkout', '/admin',
+    '/search?', '/search/',
+    '/calendar/', '/filter/', '/facet/',
     'javascript:', 'mailto:', 'tel:', '#',
   ];
 
@@ -65,4 +74,41 @@ export function shouldSkipUrl(url: string): boolean {
     skipExtensions.some(ext => lowerUrl.endsWith(ext)) ||
     skipPatterns.some(pattern => lowerUrl.includes(pattern))
   );
+}
+
+/**
+ * Check if a URL is within the allowed domain scope (including approved subdomains).
+ */
+export function isInDomainScope(
+  url: string,
+  baseUrl: string,
+  allowedDomains: string[] = []
+): boolean {
+  try {
+    const parsedUrl = new URL(url);
+    const parsedBase = new URL(baseUrl);
+
+    // Same hostname always allowed
+    if (parsedUrl.hostname === parsedBase.hostname) return true;
+
+    // Check approved subdomains/domains
+    for (const domain of allowedDomains) {
+      const normalizedDomain = domain.replace(/^www\./, '');
+      const normalizedHost = parsedUrl.hostname.replace(/^www\./, '');
+      if (normalizedHost === normalizedDomain || normalizedHost.endsWith('.' + normalizedDomain)) {
+        return true;
+      }
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Check if a URL points to a PDF file.
+ */
+export function isPdfUrl(url: string): boolean {
+  return url.toLowerCase().endsWith('.pdf');
 }

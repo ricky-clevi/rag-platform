@@ -2,9 +2,35 @@ import { NextRequest } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import { generateQueryEmbedding } from '@/lib/gemini/embeddings';
 import { generateStructuredResponse, streamChatResponse } from '@/lib/gemini/chat';
+import { checkRateLimit, RATE_LIMITS, getClientIp, isLikelyBot } from '@/lib/rate-limiter';
+import { recordUsageEvent, recordAuditLog } from '@/lib/usage-logger';
 import type { MatchedChunk, SourceCitation } from '@/types';
 
 export async function POST(request: NextRequest) {
+  // Bot detection (#18)
+  if (isLikelyBot(request)) {
+    return new Response(JSON.stringify({ error: 'Automated requests are not allowed' }), {
+      status: 403,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  // Rate limiting (#17)
+  const clientIp = getClientIp(request);
+  const ipLimit = checkRateLimit(`chat:ip:${clientIp}`, RATE_LIMITS.chat);
+  if (!ipLimit.allowed) {
+    return new Response(
+      JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
+      {
+        status: 429,
+        headers: {
+          'Content-Type': 'application/json',
+          'Retry-After': String(Math.ceil((ipLimit.retryAfterMs || 60000) / 1000)),
+        },
+      }
+    );
+  }
+
   const body = await request.json();
   const { agent_id, message, conversation_id, session_id, share_token } = body;
 
@@ -13,6 +39,21 @@ export async function POST(request: NextRequest) {
       status: 400,
       headers: { 'Content-Type': 'application/json' },
     });
+  }
+
+  // Per-session rate limit
+  const sessionLimit = checkRateLimit(`chat:session:${agent_id}:${session_id}`, RATE_LIMITS.chatSession);
+  if (!sessionLimit.allowed) {
+    return new Response(
+      JSON.stringify({ error: 'Too many messages. Please slow down.' }),
+      {
+        status: 429,
+        headers: {
+          'Content-Type': 'application/json',
+          'Retry-After': String(Math.ceil((sessionLimit.retryAfterMs || 30000) / 1000)),
+        },
+      }
+    );
   }
 
   const supabase = createServiceClient();
@@ -36,6 +77,39 @@ export async function POST(request: NextRequest) {
       status: 400,
       headers: { 'Content-Type': 'application/json' },
     });
+  }
+
+  // Share link validation (#14, #15, #16)
+  if (agent.visibility === 'passcode' && share_token) {
+    const { data: shareLink } = await supabase
+      .from('share_links')
+      .select('*')
+      .eq('token', share_token)
+      .is('revoked_at', null)
+      .single();
+
+    if (!shareLink) {
+      return new Response(JSON.stringify({ error: 'Invalid share link' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Check expiration
+    if (shareLink.expires_at && new Date(shareLink.expires_at) < new Date()) {
+      return new Response(JSON.stringify({ error: 'Share link has expired' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Check max uses
+    if (shareLink.max_uses && shareLink.use_count >= shareLink.max_uses) {
+      return new Response(JSON.stringify({ error: 'Share link usage limit reached' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
   }
 
   // Get agent settings
@@ -78,6 +152,12 @@ export async function POST(request: NextRequest) {
           .single();
         if (shareLink) {
           insertData.share_link_id = shareLink.id;
+
+          // Increment use count (#16)
+          await supabase
+            .from('share_links')
+            .update({ use_count: (shareLink as { use_count?: number }).use_count ? ((shareLink as { use_count: number }).use_count + 1) : 1 })
+            .eq('id', shareLink.id);
         }
       }
       const { data: conv } = await supabase
@@ -200,6 +280,21 @@ export async function POST(request: NextRequest) {
             });
           }
 
+          // Record usage event (#23)
+          recordUsageEvent({
+            agent_id,
+            event_type: 'chat',
+            metadata: {
+              model_used,
+              confidence: structured.confidence,
+              answered_from_sources_only: structured.answered_from_sources_only,
+              needs_recrawl: structured.needs_recrawl,
+              sources_count: sources.length,
+              conversation_id: convId,
+              ip: clientIp,
+            },
+          });
+
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
           controller.close();
         } catch {
@@ -238,6 +333,13 @@ export async function POST(request: NextRequest) {
                 token_usage: {},
               });
             }
+
+            // Record usage event for fallback path
+            recordUsageEvent({
+              agent_id,
+              event_type: 'chat',
+              metadata: { fallback: true, conversation_id: convId, ip: clientIp },
+            });
 
             controller.enqueue(encoder.encode('data: [DONE]\n\n'));
             controller.close();

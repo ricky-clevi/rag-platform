@@ -1,4 +1,4 @@
-import { Bot, User } from 'lucide-react';
+import { Bot, User, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { CitationDrawer } from './citation-drawer';
 import { ConfidenceBadge } from './confidence-badge';
@@ -12,6 +12,7 @@ interface MessageBubbleProps {
   isStreaming?: boolean;
   confidence?: number;
   model_used?: string;
+  answered_from_sources_only?: boolean;
 }
 
 export function MessageBubble({
@@ -21,8 +22,11 @@ export function MessageBubble({
   isStreaming,
   confidence,
   model_used,
+  answered_from_sources_only,
 }: MessageBubbleProps) {
   const isUser = role === 'user';
+  const isLowConfidence = confidence !== undefined && confidence < 0.4;
+  const usedGeneralKnowledge = answered_from_sources_only === false;
 
   return (
     <div className={cn('flex gap-3', isUser && 'flex-row-reverse')}>
@@ -40,12 +44,30 @@ export function MessageBubble({
           isUser && 'flex flex-col items-end'
         )}
       >
+        {/* Low confidence warning (#19) */}
+        {!isUser && !isStreaming && isLowConfidence && (
+          <div className="flex items-center gap-1.5 rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-1.5 text-xs text-yellow-800">
+            <AlertTriangle className="h-3 w-3 shrink-0" />
+            <span>This answer may be incomplete. The information was not strongly supported by the company&apos;s website.</span>
+          </div>
+        )}
+
+        {/* General knowledge warning (#19) */}
+        {!isUser && !isStreaming && usedGeneralKnowledge && !isLowConfidence && (
+          <div className="flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs text-blue-800">
+            <AlertTriangle className="h-3 w-3 shrink-0" />
+            <span>This answer includes information beyond the company&apos;s website content.</span>
+          </div>
+        )}
+
         <div
           className={cn(
             'rounded-2xl px-4 py-2.5 text-sm leading-relaxed',
             isUser
               ? 'bg-primary text-primary-foreground rounded-br-md'
-              : 'bg-muted rounded-bl-md'
+              : isLowConfidence
+                ? 'bg-yellow-50 border border-yellow-200 rounded-bl-md'
+                : 'bg-muted rounded-bl-md'
           )}
         >
           {content || (isStreaming && <Spinner className="h-4 w-4" />)}

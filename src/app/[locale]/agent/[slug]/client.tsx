@@ -15,6 +15,7 @@ interface PublicAgentClientProps {
   domain: string;
   welcomeMessage?: string;
   starterQuestions: string[];
+  shareToken?: string;
 }
 
 export function PublicAgentClient({
@@ -22,6 +23,7 @@ export function PublicAgentClient({
   domain,
   welcomeMessage,
   starterQuestions,
+  shareToken,
 }: PublicAgentClientProps) {
   const [verified, setVerified] = useState(agent.visibility !== 'passcode');
 
@@ -45,6 +47,7 @@ export function PublicAgentClient({
           companyName={domain}
           welcomeMessage={welcomeMessage}
           starterQuestions={starterQuestions}
+          shareToken={shareToken}
         />
       </div>
     </div>

@@ -3,12 +3,13 @@
 import { useTranslations } from 'next-intl';
 import { Link, usePathname } from '@/i18n/navigation';
 import { cn } from '@/lib/utils/cn';
-import { LayoutDashboard, Bot, PlusCircle } from 'lucide-react';
+import { LayoutDashboard, Bot, PlusCircle, Building2 } from 'lucide-react';
 
 const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, labelKey: 'dashboard' as const },
   { href: '/agents', icon: Bot, labelKey: 'agents' as const },
   { href: '/agents/new', icon: PlusCircle, labelKey: 'newAgent' as const },
+  { href: '/organizations', icon: Building2, labelKey: 'organizations' as const },
 ];
 
 export function Sidebar() {
