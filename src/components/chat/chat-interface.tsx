@@ -15,6 +15,7 @@ interface ChatInterfaceProps {
   companyName: string;
   welcomeMessage?: string;
   starterQuestions?: string[];
+  shareToken?: string;
 }
 
 export function ChatInterface({
@@ -23,9 +24,10 @@ export function ChatInterface({
   companyName,
   welcomeMessage,
   starterQuestions = [],
+  shareToken,
 }: ChatInterfaceProps) {
   const t = useTranslations('chat');
-  const { messages, isLoading, sendMessage, resetChat } = useChat(agentId);
+  const { messages, isLoading, sendMessage, resetChat } = useChat(agentId, shareToken);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -103,6 +105,7 @@ export function ChatInterface({
               isStreaming={msg.isStreaming}
               confidence={msg.confidence}
               model_used={msg.model_used}
+              answered_from_sources_only={msg.answered_from_sources_only}
             />
           ))}
         </div>

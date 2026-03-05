@@ -2,22 +2,107 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { Header } from '@/components/layout/header';
 import { Bot, AlertCircle } from 'lucide-react';
 import { PublicAgentClient } from './client';
+import { recordUsageEvent } from '@/lib/usage-logger';
 
 interface AgentPageProps {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ token?: string; domain?: string }>;
 }
 
-export default async function PublicAgentPage({ params }: AgentPageProps) {
+export default async function PublicAgentPage({ params, searchParams }: AgentPageProps) {
   const { slug } = await params;
+  const { token, domain } = await searchParams;
   const supabase = createServiceClient();
 
-  // Fetch agent — visibility check: public or passcode (not private)
-  const { data: agent } = await supabase
-    .from('agents')
-    .select('*')
-    .eq('slug', slug)
-    .in('visibility', ['public', 'passcode'])
-    .single();
+  let agent;
+
+  // Custom domain lookup (#30)
+  if (slug === '_domain' && domain) {
+    const { data } = await supabase
+      .from('agents')
+      .select('*')
+      .eq('custom_domain', domain)
+      .eq('custom_domain_verified', true)
+      .single();
+    agent = data;
+  } else {
+    // Normal slug-based lookup
+    const { data } = await supabase
+      .from('agents')
+      .select('*')
+      .eq('slug', slug)
+      .in('visibility', ['public', 'passcode'])
+      .single();
+    agent = data;
+  }
+
+  // Share link token access (#14)
+  if (!agent && token) {
+    // Try to find agent via share link token
+    const { data: shareLink } = await supabase
+      .from('share_links')
+      .select('agent_id, expires_at, max_uses, use_count, revoked_at')
+      .eq('token', token)
+      .is('revoked_at', null)
+      .single();
+
+    if (shareLink) {
+      // Check expiration (#15)
+      if (shareLink.expires_at && new Date(shareLink.expires_at) < new Date()) {
+        return (
+          <>
+            <Header />
+            <main className="flex flex-1 items-center justify-center">
+              <div className="text-center">
+                <AlertCircle className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+                <h1 className="mb-2 text-2xl font-bold">Link Expired</h1>
+                <p className="text-muted-foreground">This share link has expired.</p>
+              </div>
+            </main>
+          </>
+        );
+      }
+
+      // Check max uses (#15)
+      if (shareLink.max_uses && shareLink.use_count >= shareLink.max_uses) {
+        return (
+          <>
+            <Header />
+            <main className="flex flex-1 items-center justify-center">
+              <div className="text-center">
+                <AlertCircle className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+                <h1 className="mb-2 text-2xl font-bold">Link Limit Reached</h1>
+                <p className="text-muted-foreground">This share link has reached its usage limit.</p>
+              </div>
+            </main>
+          </>
+        );
+      }
+
+      // Load the agent (even if private, share link grants access)
+      const { data: sharedAgent } = await supabase
+        .from('agents')
+        .select('*')
+        .eq('id', shareLink.agent_id)
+        .single();
+      agent = sharedAgent;
+
+      // Increment use count (#16)
+      await supabase
+        .from('share_links')
+        .update({ use_count: shareLink.use_count + 1 })
+        .eq('token', token);
+
+      // Record share view event (#23)
+      if (agent) {
+        recordUsageEvent({
+          agent_id: agent.id,
+          event_type: 'share_view',
+          metadata: { token_prefix: token.slice(0, 8) },
+        });
+      }
+    }
+  }
 
   if (!agent) {
     return (
@@ -60,18 +145,22 @@ export default async function PublicAgentPage({ params }: AgentPageProps) {
     .eq('agent_id', agent.id)
     .single();
 
-  const domain = new URL(agent.root_url).hostname.replace('www.', '');
+  const agentDomain = new URL(agent.root_url).hostname.replace('www.', '');
+
+  // Skip passcode gate if accessed via valid share token
+  const skipPasscode = !!token;
 
   return (
     <PublicAgentClient
       agent={{
         id: agent.id,
         name: agent.name,
-        visibility: agent.visibility,
+        visibility: skipPasscode ? 'public' : agent.visibility,
       }}
-      domain={domain}
+      domain={agentDomain}
       welcomeMessage={agentSettings?.welcome_message || undefined}
       starterQuestions={agentSettings?.starter_questions || []}
+      shareToken={token}
     />
   );
 }

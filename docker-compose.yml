@@ -39,6 +39,39 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # Recrawl Scheduler
+  recrawl-scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["npx", "tsx", "workers/recrawl-scheduler.ts"]
+    environment:
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Nightly Eval Runner
+  nightly-eval:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["npx", "tsx", "workers/nightly-eval.ts"]
+    environment:
+      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
+      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
   # Redis (for BullMQ job queue)
   redis:
     image: redis:7-alpine

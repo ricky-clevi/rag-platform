@@ -3,6 +3,8 @@ import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { addCrawlJob } from '@/lib/queue/crawl-queue';
 import { generateUniqueSlug } from '@/lib/utils/slug';
 import { isValidUrl, extractDomain } from '@/lib/utils/url';
+import { recordAuditLog, recordUsageEvent } from '@/lib/usage-logger';
+import { checkRateLimit, getClientIp, RATE_LIMITS } from '@/lib/rate-limiter';
 
 // GET /api/agents - List user's agents
 export async function GET() {
@@ -34,6 +36,40 @@ export async function POST(request: NextRequest) {
 
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Rate limiting (#13)
+  const ip = getClientIp(request);
+  const rateResult = checkRateLimit(`agent-create:${ip}`, RATE_LIMITS.agentCreation);
+  if (!rateResult.allowed) {
+    return NextResponse.json(
+      { error: 'Too many agent creation requests' },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil((rateResult.retryAfterMs || 60000) / 1000)) } }
+    );
+  }
+
+  // Quota enforcement (#35)
+  const { data: membership } = await supabase
+    .from('memberships')
+    .select('org_id, organizations(quota_agents)')
+    .eq('user_id', user.id)
+    .limit(1)
+    .single();
+
+  if (membership?.organizations) {
+    const org = membership.organizations as { quota_agents?: number };
+    if (org.quota_agents && org.quota_agents > 0) {
+      const { count: agentCount } = await supabase
+        .from('agents')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', user.id);
+      if (agentCount && agentCount >= org.quota_agents) {
+        return NextResponse.json(
+          { error: `Agent quota reached (${org.quota_agents}). Upgrade your plan.` },
+          { status: 403 }
+        );
+      }
+    }
   }
 
   const body = await request.json();
@@ -89,6 +125,19 @@ export async function POST(request: NextRequest) {
       user_id: user.id,
       crawl_job_id: crawlJob?.id || '',
       job_type: 'full',
+    });
+
+    // Audit log & usage event (#24)
+    recordAuditLog({
+      user_id: user.id,
+      agent_id: agent.id,
+      action: 'agent_created',
+      details: { name: agent.name, root_url: normalizedUrl },
+    });
+    recordUsageEvent({
+      agent_id: agent.id,
+      event_type: 'agent_created',
+      metadata: { user_id: user.id },
     });
 
     return NextResponse.json({ agent, jobId }, { status: 201 });

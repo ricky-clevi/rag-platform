@@ -3,10 +3,16 @@ import { getRedisConnectionOpts } from './connection';
 import { crawlWebsite, type CrawlResult } from '@/lib/crawler';
 import { generateEmbedding } from '@/lib/gemini/embeddings';
 import { createServiceClient } from '@/lib/supabase/server';
+import { recordUsageEvent, recordAuditLog } from '@/lib/usage-logger';
 import type { CrawlJobData } from '@/types';
+import { createHash } from 'crypto';
+
+function chunkContentHash(content: string): string {
+  return createHash('sha256').update(content).digest('hex');
+}
 
 async function processCrawlJob(job: Job<CrawlJobData>) {
-  const { agent_id, root_url, crawl_job_id, job_type } = job.data;
+  const { agent_id, root_url, crawl_job_id, job_type, user_id } = job.data;
   const supabase = createServiceClient();
 
   const startedAt = new Date().toISOString();
@@ -33,6 +39,13 @@ async function processCrawlJob(job: Job<CrawlJobData>) {
   let totalSkipped = 0;
   let totalFailed = 0;
 
+  // Load allowed domains for domain-aware crawling (#6)
+  const { data: agentDomains } = await supabase
+    .from('agent_domains')
+    .select('domain')
+    .eq('agent_id', agent_id);
+  const allowedDomains = (agentDomains || []).map((d: { domain: string }) => d.domain);
+
   // For incremental crawls, load existing page data
   let existingPages: Map<string, { etag?: string; lastModified?: string; contentHash?: string }> | undefined;
   if (job_type === 'incremental') {
@@ -53,9 +66,52 @@ async function processCrawlJob(job: Job<CrawlJobData>) {
     }
   }
 
+  // For partial re-embedding (#27), load existing chunk hashes
+  const existingChunkHashes = new Map<string, Map<string, string>>();
+  if (job_type === 'incremental') {
+    const { data: existingChunks } = await supabase
+      .from('chunks')
+      .select('id, page_id, content_hash')
+      .eq('agent_id', agent_id);
+    if (existingChunks) {
+      for (const chunk of existingChunks) {
+        if (!chunk.page_id) continue;
+        if (!existingChunkHashes.has(chunk.page_id)) {
+          existingChunkHashes.set(chunk.page_id, new Map());
+        }
+        if (chunk.content_hash) {
+          existingChunkHashes.get(chunk.page_id)!.set(chunk.content_hash, chunk.id);
+        }
+      }
+    }
+  }
+
+  // Record crawl start (#23, #24)
+  recordUsageEvent({
+    agent_id,
+    event_type: 'crawl',
+    metadata: { action: 'start', job_type, crawl_job_id },
+  });
+  recordAuditLog({
+    user_id: user_id || null,
+    agent_id,
+    action: 'crawl_started',
+    details: { job_type, crawl_job_id },
+  });
+
   try {
     const result = await crawlWebsite(root_url, {
       onPageCrawled: async (crawlResult: CrawlResult) => {
+        // Save previous_markdown before overwriting (#26)
+        const { data: existingPage } = await supabase
+          .from('pages')
+          .select('id, clean_markdown')
+          .eq('agent_id', agent_id)
+          .eq('url', crawlResult.url)
+          .single();
+
+        const previousMarkdown = existingPage?.clean_markdown || null;
+
         // Store/update page
         const { data: page } = await supabase
           .from('pages')
@@ -73,9 +129,11 @@ async function processCrawlJob(job: Job<CrawlJobData>) {
               content_hash: crawlResult.contentHash,
               robots_allowed: crawlResult.robotsAllowed,
               clean_markdown: crawlResult.content,
+              previous_markdown: previousMarkdown,
               raw_html_length: crawlResult.rawHtmlLength,
               page_type: crawlResult.pageType,
               crawl_status: 'crawled',
+              skip_reason: null,
               last_crawled_at: new Date().toISOString(),
             },
             { onConflict: 'agent_id,url' }
@@ -85,14 +143,39 @@ async function processCrawlJob(job: Job<CrawlJobData>) {
 
         if (!page) return;
 
-        // Delete old chunks for this page (on recrawl)
-        await supabase
-          .from('chunks')
-          .delete()
-          .eq('page_id', page.id);
+        // Partial re-embedding (#27): only re-embed changed chunks
+        const pageChunkHashes = existingChunkHashes.get(page.id);
+        const unchangedChunkIds = new Set<string>();
+        const newChunks: (typeof crawlResult.chunks[number] & { hash: string })[] = [];
 
-        // Generate embeddings and store chunks
         for (const chunk of crawlResult.chunks) {
+          const hash = chunkContentHash(chunk.content);
+          if (pageChunkHashes?.has(hash)) {
+            unchangedChunkIds.add(pageChunkHashes.get(hash)!);
+          } else {
+            newChunks.push({ ...chunk, hash });
+          }
+        }
+
+        // Delete only changed/removed chunks
+        if (pageChunkHashes && pageChunkHashes.size > 0) {
+          const { data: existingForPage } = await supabase
+            .from('chunks')
+            .select('id')
+            .eq('page_id', page.id);
+          const toDelete = (existingForPage || [])
+            .filter((c) => !unchangedChunkIds.has(c.id))
+            .map((c) => c.id);
+          if (toDelete.length > 0) {
+            await supabase.from('chunks').delete().in('id', toDelete);
+          }
+        } else {
+          // Full crawl: delete all old chunks
+          await supabase.from('chunks').delete().eq('page_id', page.id);
+        }
+
+        // Generate embeddings only for new/changed chunks
+        for (const chunk of newChunks) {
           try {
             const embedding = await generateEmbedding(chunk.content);
 
@@ -106,7 +189,7 @@ async function processCrawlJob(job: Job<CrawlJobData>) {
               language: crawlResult.language,
               token_count: chunk.token_count,
               rank_weight: 1.0,
-              content_hash: crawlResult.contentHash,
+              content_hash: chunk.hash,
               embedding: JSON.stringify(embedding),
             });
 
@@ -116,7 +199,20 @@ async function processCrawlJob(job: Job<CrawlJobData>) {
           }
         }
 
+        totalChunksProcessed += unchangedChunkIds.size;
         totalPagesProcessed++;
+
+        if (newChunks.length > 0) {
+          recordUsageEvent({
+            agent_id,
+            event_type: 'embed',
+            metadata: {
+              page_url: crawlResult.url,
+              new_chunks: newChunks.length,
+              unchanged_chunks: unchangedChunkIds.size,
+            },
+          });
+        }
 
         // Update progress
         await supabase
@@ -131,7 +227,6 @@ async function processCrawlJob(job: Job<CrawlJobData>) {
           })
           .eq('id', agent_id);
 
-        // Update crawl job progress
         if (crawl_job_id) {
           await supabase
             .from('crawl_jobs')
@@ -152,16 +247,47 @@ async function processCrawlJob(job: Job<CrawlJobData>) {
       onError: (url, error) => {
         totalFailed++;
         console.error(`Crawl error for ${url}: ${error}`);
+
+        // Store failed page record (#5)
+        supabase
+          .from('pages')
+          .upsert(
+            {
+              agent_id,
+              crawl_job_id: crawl_job_id || null,
+              url,
+              crawl_status: 'failed',
+              skip_reason: error,
+              last_crawled_at: new Date().toISOString(),
+            },
+            { onConflict: 'agent_id,url' }
+          )
+          .then(() => {});
       },
 
-      onPageSkipped: (_url, _reason) => {
+      onPageSkipped: (url, reason) => {
         totalSkipped++;
+
+        // Store skipped/blocked page record (#5)
+        supabase
+          .from('pages')
+          .upsert(
+            {
+              agent_id,
+              crawl_job_id: crawl_job_id || null,
+              url,
+              crawl_status: reason === 'robots.txt' ? 'blocked' : 'skipped',
+              skip_reason: reason,
+              last_crawled_at: new Date().toISOString(),
+            },
+            { onConflict: 'agent_id,url' }
+          )
+          .then(() => {});
       },
-    }, { existingPages, jobType: job_type });
+    }, { existingPages, jobType: job_type, allowedDomains });
 
     const completedAt = new Date().toISOString();
 
-    // Mark as ready
     await supabase
       .from('agents')
       .update({
@@ -176,7 +302,6 @@ async function processCrawlJob(job: Job<CrawlJobData>) {
       })
       .eq('id', agent_id);
 
-    // Update crawl job
     if (crawl_job_id) {
       await supabase
         .from('crawl_jobs')
@@ -192,11 +317,34 @@ async function processCrawlJob(job: Job<CrawlJobData>) {
         .eq('id', crawl_job_id);
     }
 
+    recordUsageEvent({
+      agent_id,
+      event_type: 'crawl',
+      metadata: {
+        action: 'complete',
+        job_type,
+        total_pages: result.totalPages,
+        total_chunks: result.totalChunks,
+        errors: result.errors,
+        skipped: result.skipped,
+      },
+    });
+
+    recordAuditLog({
+      user_id: user_id || null,
+      agent_id,
+      action: 'crawl_completed',
+      details: {
+        job_type,
+        total_pages: result.totalPages,
+        total_chunks: result.totalChunks,
+      },
+    });
+
     return result;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
-    // Mark as error
     await supabase
       .from('agents')
       .update({
@@ -210,7 +358,6 @@ async function processCrawlJob(job: Job<CrawlJobData>) {
       })
       .eq('id', agent_id);
 
-    // Update crawl job
     if (crawl_job_id) {
       await supabase
         .from('crawl_jobs')
@@ -221,6 +368,13 @@ async function processCrawlJob(job: Job<CrawlJobData>) {
         })
         .eq('id', crawl_job_id);
     }
+
+    recordAuditLog({
+      user_id: user_id || null,
+      agent_id,
+      action: 'crawl_failed',
+      details: { error: errorMessage },
+    });
 
     throw error;
   }

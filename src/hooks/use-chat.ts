@@ -12,9 +12,10 @@ export interface ChatMessage {
   isStreaming?: boolean;
   confidence?: number;
   model_used?: string;
+  answered_from_sources_only?: boolean;
 }
 
-export function useChat(agentId: string) {
+export function useChat(agentId: string, shareToken?: string) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -52,6 +53,7 @@ export function useChat(agentId: string) {
             message: content.trim(),
             conversation_id: conversationId,
             session_id: sessionIdRef.current,
+            share_token: shareToken,
           }),
           signal: abortControllerRef.current.signal,
         });
@@ -100,6 +102,7 @@ export function useChat(agentId: string) {
                             isStreaming: false,
                             confidence: parsed.confidence,
                             model_used: parsed.model_used,
+                            answered_from_sources_only: parsed.answered_from_sources_only,
                           }
                         : msg
                     )
@@ -153,7 +156,7 @@ export function useChat(agentId: string) {
         setIsLoading(false);
       }
     },
-    [agentId, conversationId, isLoading]
+    [agentId, conversationId, isLoading, shareToken]
   );
 
   const resetChat = useCallback(() => {
