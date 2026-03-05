@@ -4,12 +4,14 @@ import { useState, useCallback, useRef } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import type { SourceCitation } from '@/types';
 
-interface ChatMessage {
+export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   sources?: SourceCitation[];
   isStreaming?: boolean;
+  confidence?: number;
+  model_used?: string;
 }
 
 export function useChat(agentId: string) {
@@ -92,7 +94,13 @@ export function useChat(agentId: string) {
                   setMessages((prev) =>
                     prev.map((msg) =>
                       msg.id === assistantMessage.id
-                        ? { ...msg, sources: parsed.sources, isStreaming: false }
+                        ? {
+                            ...msg,
+                            sources: parsed.sources,
+                            isStreaming: false,
+                            confidence: parsed.confidence,
+                            model_used: parsed.model_used,
+                          }
                         : msg
                     )
                   );

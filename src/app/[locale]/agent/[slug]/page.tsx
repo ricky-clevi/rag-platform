@@ -1,7 +1,7 @@
 import { createServiceClient } from '@/lib/supabase/server';
-import { ChatInterface } from '@/components/chat/chat-interface';
 import { Header } from '@/components/layout/header';
 import { Bot, AlertCircle } from 'lucide-react';
+import { PublicAgentClient } from './client';
 
 interface AgentPageProps {
   params: Promise<{ slug: string }>;
@@ -53,26 +53,25 @@ export default async function PublicAgentPage({ params }: AgentPageProps) {
     );
   }
 
-  // Get agent settings for welcome message
+  // Get agent settings
   const { data: agentSettings } = await supabase
     .from('agent_settings')
-    .select('welcome_message')
+    .select('welcome_message, starter_questions')
     .eq('agent_id', agent.id)
     .single();
 
   const domain = new URL(agent.root_url).hostname.replace('www.', '');
 
   return (
-    <div className="flex h-screen flex-col">
-      <Header />
-      <div className="flex-1 overflow-hidden">
-        <ChatInterface
-          agentId={agent.id}
-          agentName={agent.name}
-          companyName={domain}
-          welcomeMessage={agentSettings?.welcome_message || undefined}
-        />
-      </div>
-    </div>
+    <PublicAgentClient
+      agent={{
+        id: agent.id,
+        name: agent.name,
+        visibility: agent.visibility,
+      }}
+      domain={domain}
+      welcomeMessage={agentSettings?.welcome_message || undefined}
+      starterQuestions={agentSettings?.starter_questions || []}
+    />
   );
 }

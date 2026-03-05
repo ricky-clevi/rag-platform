@@ -1,6 +1,7 @@
 import { Bot, User } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
-import { SourceCitationList } from './source-citation';
+import { CitationDrawer } from './citation-drawer';
+import { ConfidenceBadge } from './confidence-badge';
 import { Spinner } from '@/components/common/loading-states';
 import type { SourceCitation } from '@/types';
 
@@ -9,6 +10,8 @@ interface MessageBubbleProps {
   content: string;
   sources?: SourceCitation[];
   isStreaming?: boolean;
+  confidence?: number;
+  model_used?: string;
 }
 
 export function MessageBubble({
@@ -16,6 +19,8 @@ export function MessageBubble({
   content,
   sources,
   isStreaming,
+  confidence,
+  model_used,
 }: MessageBubbleProps) {
   const isUser = role === 'user';
 
@@ -48,8 +53,15 @@ export function MessageBubble({
             <span className="ml-1 inline-block h-4 w-1 animate-pulse bg-current" />
           )}
         </div>
+
+        {/* Confidence badge + model info */}
+        {!isUser && !isStreaming && confidence !== undefined && (
+          <ConfidenceBadge confidence={confidence} model_used={model_used} />
+        )}
+
+        {/* Citation Drawer */}
         {sources && sources.length > 0 && !isStreaming && (
-          <SourceCitationList sources={sources} />
+          <CitationDrawer sources={sources} />
         )}
       </div>
     </div>

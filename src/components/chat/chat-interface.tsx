@@ -6,7 +6,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { MessageBubble } from './message-bubble';
 import { ChatInput } from './chat-input';
 import { Button } from '@/components/ui/button';
-import { Bot, RotateCcw } from 'lucide-react';
+import { Bot, RotateCcw, MessageCircle } from 'lucide-react';
 import { useChat } from '@/hooks/use-chat';
 
 interface ChatInterfaceProps {
@@ -14,6 +14,7 @@ interface ChatInterfaceProps {
   agentName: string;
   companyName: string;
   welcomeMessage?: string;
+  starterQuestions?: string[];
 }
 
 export function ChatInterface({
@@ -21,6 +22,7 @@ export function ChatInterface({
   agentName,
   companyName,
   welcomeMessage,
+  starterQuestions = [],
 }: ChatInterfaceProps) {
   const t = useTranslations('chat');
   const { messages, isLoading, sendMessage, resetChat } = useChat(agentId);
@@ -33,6 +35,10 @@ export function ChatInterface({
   }, [messages]);
 
   const defaultWelcome = t('welcome', { companyName });
+
+  const handleStarterClick = (question: string) => {
+    sendMessage(question);
+  };
 
   return (
     <div className="flex h-full flex-col">
@@ -58,10 +64,34 @@ export function ChatInterface({
         <div className="mx-auto max-w-2xl space-y-3 sm:space-y-4">
           {/* Welcome message */}
           {messages.length === 0 && (
-            <MessageBubble
-              role="assistant"
-              content={welcomeMessage || defaultWelcome}
-            />
+            <>
+              <MessageBubble
+                role="assistant"
+                content={welcomeMessage || defaultWelcome}
+              />
+
+              {/* Starter Questions */}
+              {starterQuestions.length > 0 && (
+                <div className="flex flex-col gap-2 pl-11">
+                  <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                    <MessageCircle className="h-3 w-3" />
+                    Try asking:
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {starterQuestions.map((question, index) => (
+                      <button
+                        key={index}
+                        onClick={() => handleStarterClick(question)}
+                        disabled={isLoading}
+                        className="rounded-lg border border-border bg-card px-3 py-2 text-left text-sm text-foreground shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-50"
+                      >
+                        {question}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           {messages.map((msg) => (
@@ -71,6 +101,8 @@ export function ChatInterface({
               content={msg.content}
               sources={msg.sources}
               isStreaming={msg.isStreaming}
+              confidence={msg.confidence}
+              model_used={msg.model_used}
             />
           ))}
         </div>
