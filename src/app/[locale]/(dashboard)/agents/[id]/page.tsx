@@ -52,6 +52,7 @@ export default function AgentDetailPage({
   const [editName, setEditName] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editVisibility, setEditVisibility] = useState<'public' | 'private' | 'passcode'>('public');
+  const [editPasscode, setEditPasscode] = useState('');
   const [editWelcomeMessage, setEditWelcomeMessage] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -163,6 +164,7 @@ export default function AgentDetailPage({
         name: editName,
         description: editDescription,
         visibility: editVisibility,
+        passcode: editVisibility === 'passcode' && editPasscode.trim() ? editPasscode.trim() : undefined,
         settings: {
           welcome_message: editWelcomeMessage,
         },
@@ -173,6 +175,7 @@ export default function AgentDetailPage({
       const data = await response.json();
       setAgent(data.agent);
       setAgentSettings(data.settings);
+      setEditPasscode('');
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     }
@@ -317,6 +320,22 @@ export default function AgentDetailPage({
               <option value="passcode">Passcode Protected</option>
             </select>
           </div>
+
+          {editVisibility === 'passcode' && (
+            <div className="space-y-2">
+              <Label htmlFor="passcode">Passcode</Label>
+              <Input
+                id="passcode"
+                type="password"
+                value={editPasscode}
+                onChange={(e) => setEditPasscode(e.target.value)}
+                placeholder="Enter a new passcode (min 4 chars)"
+              />
+              <p className="text-xs text-muted-foreground">
+                Leave blank to keep the existing passcode.
+              </p>
+            </div>
+          )}
 
           <div className="flex items-center gap-3">
             <Button onClick={handleSaveSettings} disabled={saving}>

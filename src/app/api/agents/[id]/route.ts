@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import bcrypt from 'bcryptjs';
 
 // GET /api/agents/[id] - Get agent details
 export async function GET(
@@ -61,14 +62,45 @@ export async function PATCH(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const { data: existingAgent } = await supabase
+    .from('agents')
+    .select('id, visibility, passcode_hash')
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .single();
+
+  if (!existingAgent) {
+    return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
+  }
+
   const body = await request.json();
-  const { name, description, visibility, settings } = body;
+  const { name, description, visibility, passcode, settings } = body;
+
+  const targetVisibility = visibility ?? existingAgent.visibility;
 
   // Update agent fields
   const agentUpdates: Record<string, unknown> = {};
   if (name !== undefined) agentUpdates.name = name;
   if (description !== undefined) agentUpdates.description = description;
   if (visibility !== undefined) agentUpdates.visibility = visibility;
+
+  // Passcode protection updates.
+  if (targetVisibility === 'passcode') {
+    if (typeof passcode === 'string' && passcode.trim().length > 0) {
+      if (passcode.trim().length < 4) {
+        return NextResponse.json({ error: 'Passcode must be at least 4 characters' }, { status: 400 });
+      }
+      agentUpdates.passcode_hash = await bcrypt.hash(passcode.trim(), 10);
+    } else if (!existingAgent.passcode_hash) {
+      return NextResponse.json(
+        { error: 'Passcode is required when enabling passcode protection' },
+        { status: 400 }
+      );
+    }
+  } else if (visibility !== undefined && visibility !== 'passcode') {
+    // Remove stale passcode when passcode protection is turned off.
+    agentUpdates.passcode_hash = null;
+  }
 
   if (Object.keys(agentUpdates).length > 0) {
     const { error } = await supabase

@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 import bcrypt from 'bcryptjs';
+import {
+  createPasscodeSessionToken,
+  getPasscodeSessionCookieName,
+  getPasscodeSessionTtlSeconds,
+} from '@/lib/security/passcode-session';
 
 // POST /api/agents/[id]/verify-passcode - Verify passcode for a protected agent
 export async function POST(
@@ -37,5 +42,16 @@ export async function POST(
     return NextResponse.json({ valid: false, error: 'Invalid passcode' }, { status: 401 });
   }
 
-  return NextResponse.json({ valid: true });
+  const response = NextResponse.json({ valid: true });
+  response.cookies.set({
+    name: getPasscodeSessionCookieName(id),
+    value: createPasscodeSessionToken(id),
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    path: '/',
+    maxAge: getPasscodeSessionTtlSeconds(),
+  });
+
+  return response;
 }

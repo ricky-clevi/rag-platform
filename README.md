@@ -1,36 +1,118 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AgentForge RAG Platform
 
-## Getting Started
+Production-oriented RAG agent builder built with Next.js, Supabase, Gemini, and BullMQ.
 
-First, run the development server:
+## What It Does
+
+- Crawls a website (HTTP first, browser fallback)
+- Extracts and chunks content
+- Generates embeddings and stores them in pgvector
+- Serves a public/private/passcode-protected chat agent
+- Supports share links, analytics, scheduled recrawls, and eval runs
+
+## Tech Stack
+
+- Next.js 16 + React 19 + TypeScript
+- Supabase (Postgres + pgvector + Auth)
+- Gemini (`@google/genai`) for embeddings and chat
+- Redis + BullMQ for crawl jobs
+- `next-intl` (English/Korean)
+
+## Prerequisites
+
+- Node.js 20+
+- npm
+- Redis (local or remote)
+- Supabase project (cloud or local via `docker compose`)
+
+## Environment
+
+Copy `.env.local.example` to `.env.local` and set values.
+
+Required:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `GEMINI_API_KEY`
+- `REDIS_URL`
+- `NEXT_PUBLIC_APP_URL`
+- `PASSCODE_SESSION_SECRET` (long random secret)
+
+Optional:
+
+- `WEBHOOK_SECRET` for `/api/webhooks/crawler`
+- `METRICS_API_KEY` for `/api/metrics`
+- `WILDCARD_DOMAIN`
+
+## Database Setup
+
+Migrations are in `supabase/migrations` and applied in filename order.
+
+Print combined SQL:
+
+```bash
+npx tsx scripts/setup-db.ts
+```
+
+Or apply via Supabase CLI:
+
+```bash
+npx supabase db push
+```
+
+## Local Development
+
+Install dependencies:
+
+```bash
+npm ci
+```
+
+Run app:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Run crawl worker (required for crawling jobs):
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run worker
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Optional background jobs:
 
-## Learn More
+```bash
+npm run recrawl-scheduler
+npm run nightly-eval
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Docker (Local Infra)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+`docker-compose.yml` provisions Supabase services + Redis.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+docker compose up -d
+docker compose down
+```
 
-## Deploy on Vercel
+Useful endpoints:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- Supabase Studio: `http://localhost:3001`
+- Supabase API Gateway: `http://localhost:8000`
+- Redis: `localhost:6379`
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Quality Checks
+
+```bash
+npm run lint
+npx tsc --noEmit
+npm run build
+```
+
+## Notes
+
+- `/api/metrics` requires `METRICS_API_KEY` when configured.
+- Passcode-protected agents rely on secure HTTP-only passcode session cookies.
+- Share-link usage is incremented when a new conversation is created.

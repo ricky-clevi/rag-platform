@@ -3,7 +3,11 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { generateQueryEmbedding } from '@/lib/gemini/embeddings';
 import { generateStructuredResponse, streamChatResponse } from '@/lib/gemini/chat';
 import { checkRateLimit, RATE_LIMITS, getClientIp, isLikelyBot } from '@/lib/rate-limiter';
-import { recordUsageEvent, recordAuditLog } from '@/lib/usage-logger';
+import { recordUsageEvent } from '@/lib/usage-logger';
+import {
+  getPasscodeSessionCookieName,
+  verifyPasscodeSessionToken,
+} from '@/lib/security/passcode-session';
 import type { MatchedChunk, SourceCitation } from '@/types';
 
 export async function POST(request: NextRequest) {
@@ -79,16 +83,31 @@ export async function POST(request: NextRequest) {
     });
   }
 
+  let validShareLink: {
+    id: string;
+    agent_id: string;
+    expires_at: string | null;
+    max_uses: number | null;
+    use_count: number;
+  } | null = null;
+
   // Share link validation (#14, #15, #16)
-  if (agent.visibility === 'passcode' && share_token) {
+  if (share_token) {
     const { data: shareLink } = await supabase
       .from('share_links')
-      .select('*')
+      .select('id, agent_id, expires_at, max_uses, use_count, revoked_at')
       .eq('token', share_token)
       .is('revoked_at', null)
       .single();
 
     if (!shareLink) {
+      return new Response(JSON.stringify({ error: 'Invalid share link' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    if (shareLink.agent_id !== agent_id) {
       return new Response(JSON.stringify({ error: 'Invalid share link' }), {
         status: 403,
         headers: { 'Content-Type': 'application/json' },
@@ -110,6 +129,27 @@ export async function POST(request: NextRequest) {
         headers: { 'Content-Type': 'application/json' },
       });
     }
+
+    validShareLink = shareLink;
+  }
+
+  const passcodeSession = request.cookies.get(getPasscodeSessionCookieName(agent_id))?.value;
+  const hasValidPasscodeSession = passcodeSession
+    ? verifyPasscodeSessionToken(passcodeSession, agent_id)
+    : false;
+
+  if (agent.visibility === 'private' && !validShareLink) {
+    return new Response(JSON.stringify({ error: 'This agent requires a valid share link' }), {
+      status: 403,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  if (agent.visibility === 'passcode' && !validShareLink && !hasValidPasscodeSession) {
+    return new Response(JSON.stringify({ error: 'Passcode verification required' }), {
+      status: 403,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 
   // Get agent settings
@@ -125,12 +165,12 @@ export async function POST(request: NextRequest) {
 
     // Hybrid search: vector + full-text
     const { data: matchedChunks } = await supabase.rpc('hybrid_search', {
-      p_agent_id: agent_id,
-      p_query_embedding: JSON.stringify(queryEmbedding),
-      p_query_text: message,
-      p_match_count: 8,
-      p_vector_weight: 0.7,
-      p_keyword_weight: 0.3,
+      query_embedding: JSON.stringify(queryEmbedding),
+      query_text: message,
+      match_agent_id: agent_id,
+      match_count: 8,
+      semantic_weight: 0.7,
+      keyword_weight: 0.3,
     });
 
     const context: MatchedChunk[] = matchedChunks || [];
@@ -143,22 +183,14 @@ export async function POST(request: NextRequest) {
         session_id,
         title: message.slice(0, 100),
       };
-      if (share_token) {
-        const { data: shareLink } = await supabase
-          .from('share_links')
-          .select('id')
-          .eq('token', share_token)
-          .is('revoked_at', null)
-          .single();
-        if (shareLink) {
-          insertData.share_link_id = shareLink.id;
+      if (validShareLink) {
+        insertData.share_link_id = validShareLink.id;
 
-          // Increment use count (#16)
-          await supabase
-            .from('share_links')
-            .update({ use_count: (shareLink as { use_count?: number }).use_count ? ((shareLink as { use_count: number }).use_count + 1) : 1 })
-            .eq('id', shareLink.id);
-        }
+        // Increment use count (#16) once per conversation creation.
+        await supabase
+          .from('share_links')
+          .update({ use_count: validShareLink.use_count + 1 })
+          .eq('id', validShareLink.id);
       }
       const { data: conv } = await supabase
         .from('conversations')

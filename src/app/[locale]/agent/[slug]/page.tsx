@@ -15,6 +15,14 @@ export default async function PublicAgentPage({ params, searchParams }: AgentPag
   const supabase = createServiceClient();
 
   let agent;
+  let validShareLink:
+    | {
+        agent_id: string;
+        expires_at: string | null;
+        max_uses: number | null;
+        use_count: number;
+      }
+    | null = null;
 
   // Custom domain lookup (#30)
   if (slug === '_domain' && domain) {
@@ -36,9 +44,7 @@ export default async function PublicAgentPage({ params, searchParams }: AgentPag
     agent = data;
   }
 
-  // Share link token access (#14)
-  if (!agent && token) {
-    // Try to find agent via share link token
+  if (token) {
     const { data: shareLink } = await supabase
       .from('share_links')
       .select('agent_id, expires_at, max_uses, use_count, revoked_at')
@@ -79,28 +85,20 @@ export default async function PublicAgentPage({ params, searchParams }: AgentPag
         );
       }
 
+      validShareLink = shareLink;
+    }
+  }
+
+  // Share link token access (#14)
+  if (!agent && token) {
+    if (validShareLink) {
       // Load the agent (even if private, share link grants access)
       const { data: sharedAgent } = await supabase
         .from('agents')
         .select('*')
-        .eq('id', shareLink.agent_id)
+        .eq('id', validShareLink.agent_id)
         .single();
       agent = sharedAgent;
-
-      // Increment use count (#16)
-      await supabase
-        .from('share_links')
-        .update({ use_count: shareLink.use_count + 1 })
-        .eq('token', token);
-
-      // Record share view event (#23)
-      if (agent) {
-        recordUsageEvent({
-          agent_id: agent.id,
-          event_type: 'share_view',
-          metadata: { token_prefix: token.slice(0, 8) },
-        });
-      }
     }
   }
 
@@ -119,6 +117,49 @@ export default async function PublicAgentPage({ params, searchParams }: AgentPag
         </main>
       </>
     );
+  }
+
+  if (token && (!validShareLink || validShareLink.agent_id !== agent.id) && agent.visibility !== 'public') {
+    return (
+      <>
+        <Header />
+        <main className="flex flex-1 items-center justify-center">
+          <div className="text-center">
+            <AlertCircle className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+            <h1 className="mb-2 text-2xl font-bold">Invalid Share Link</h1>
+            <p className="text-muted-foreground">
+              This share link is invalid, expired, or has reached its usage limit.
+            </p>
+          </div>
+        </main>
+      </>
+    );
+  }
+
+  if (agent.visibility === 'private' && (!token || !validShareLink || validShareLink.agent_id !== agent.id)) {
+    return (
+      <>
+        <Header />
+        <main className="flex flex-1 items-center justify-center">
+          <div className="text-center">
+            <AlertCircle className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+            <h1 className="mb-2 text-2xl font-bold">Agent Not Public</h1>
+            <p className="text-muted-foreground">
+              This agent requires a valid share link.
+            </p>
+          </div>
+        </main>
+      </>
+    );
+  }
+
+  // Record share view event (#23)
+  if (token && validShareLink && validShareLink.agent_id === agent.id) {
+    recordUsageEvent({
+      agent_id: agent.id,
+      event_type: 'share_view',
+      metadata: { token_prefix: token.slice(0, 8) },
+    });
   }
 
   if (agent.status !== 'ready') {
@@ -148,7 +189,7 @@ export default async function PublicAgentPage({ params, searchParams }: AgentPag
   const agentDomain = new URL(agent.root_url).hostname.replace('www.', '');
 
   // Skip passcode gate if accessed via valid share token
-  const skipPasscode = !!token;
+  const skipPasscode = !!(token && validShareLink && validShareLink.agent_id === agent.id);
 
   return (
     <PublicAgentClient
@@ -160,7 +201,7 @@ export default async function PublicAgentPage({ params, searchParams }: AgentPag
       domain={agentDomain}
       welcomeMessage={agentSettings?.welcome_message || undefined}
       starterQuestions={agentSettings?.starter_questions || []}
-      shareToken={token}
+      shareToken={skipPasscode ? token : undefined}
     />
   );
 }

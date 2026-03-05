@@ -1,13 +1,24 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/server';
 
 /**
  * GET /api/metrics (#45)
  * Prometheus-compatible metrics endpoint.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   // Verify metrics access (optional auth check)
   const metricsKey = process.env.METRICS_API_KEY;
+  if (metricsKey) {
+    const authHeader = request.headers.get('authorization');
+    const headerKey = request.headers.get('x-api-key');
+    const bearerKey = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+    const queryKey = request.nextUrl.searchParams.get('key');
+    const providedKey = headerKey || bearerKey || queryKey;
+
+    if (providedKey !== metricsKey) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+  }
 
   const supabase = createServiceClient();
 

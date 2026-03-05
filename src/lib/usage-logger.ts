@@ -1,6 +1,6 @@
 import { createServiceClient } from '@/lib/supabase/server';
 
-export type UsageEventType = 'chat' | 'crawl' | 'embed' | 'share_view';
+export type UsageEventType = 'chat' | 'crawl' | 'embed' | 'share_view' | 'agent_created';
 
 export interface UsageEventData {
   agent_id: string;

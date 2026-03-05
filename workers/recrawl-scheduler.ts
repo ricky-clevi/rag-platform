@@ -9,7 +9,7 @@
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
 import { Queue } from 'bullmq';
-import IORedis from 'ioredis';
+import { getRedisConnectionOpts } from '../src/lib/queue/connection';
 
 const POLL_INTERVAL_MS = 60_000; // Check every minute
 
@@ -22,15 +22,9 @@ function getSupabaseClient() {
   return createClient(url, key);
 }
 
-function getRedisConnection() {
-  const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-  return new IORedis(redisUrl, { maxRetriesPerRequest: null });
-}
-
 async function checkAndTriggerRecrawls() {
   const supabase = getSupabaseClient();
-  const connection = getRedisConnection();
-  const crawlQueue = new Queue('crawl', { connection });
+  const crawlQueue = new Queue('crawl', { connection: getRedisConnectionOpts() });
 
   try {
     // Find all enabled policies where next_run_at is in the past
@@ -121,7 +115,6 @@ async function checkAndTriggerRecrawls() {
     }
   } finally {
     await crawlQueue.close();
-    connection.disconnect();
   }
 }
 

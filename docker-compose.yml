@@ -1,78 +1,158 @@
+# =============================================
+# AgentForge Infrastructure: Supabase + Redis
+# =============================================
+# Usage:
+#   docker compose up -d          # start all services
+#   docker compose down           # stop all services
+#   docker compose down -v        # stop and delete all data
+#
+# Supabase Studio:  http://localhost:3001
+# Supabase API:     http://localhost:8000
+# Redis:            localhost:6379
+# PostgreSQL:       localhost:5432
+# =============================================
+
 services:
-  # Next.js Application
-  app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
-        - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-        - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+  # ── Supabase Studio (admin dashboard) ──
+  studio:
+    image: supabase/studio:latest
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
-      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
-      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - REDIS_URL=redis://redis:6379
-      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      STUDIO_PG_META_URL: http://meta:8080
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}
+      DEFAULT_ORGANIZATION_NAME: AgentForge
+      DEFAULT_PROJECT_NAME: AgentForge Local
+      SUPABASE_URL: http://kong:8000
+      SUPABASE_PUBLIC_URL: http://localhost:8000
+      SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+      SUPABASE_SERVICE_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
     depends_on:
-      redis:
+      - meta
+      - kong
+    restart: unless-stopped
+
+  # ── Kong API Gateway ──
+  kong:
+    image: kong:2.8.1
+    ports:
+      - "8000:8000"
+      - "8443:8443"
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /var/lib/kong/kong.yml
+      KONG_DNS_ORDER: LAST,A,CNAME
+      KONG_PLUGINS: request-transformer,cors,key-auth,acl,basic-auth
+      KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: 160k
+      KONG_NGINX_PROXY_PROXY_BUFFERS: 64 160k
+    volumes:
+      - ./volumes/api/kong.yml:/var/lib/kong/kong.yml:ro
+    depends_on:
+      auth:
+        condition: service_started
+      rest:
+        condition: service_started
+    restart: unless-stopped
+
+  # ── GoTrue Auth ──
+  auth:
+    image: supabase/gotrue:v2.158.1
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      API_EXTERNAL_URL: http://localhost:8000
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@db:5432/postgres
+      GOTRUE_SITE_URL: http://localhost:3000
+      GOTRUE_URI_ALLOW_LIST: ""
+      GOTRUE_DISABLE_SIGNUP: "false"
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_EXP: 3600
+      GOTRUE_JWT_SECRET: super-secret-jwt-token-with-at-least-32-characters-long
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+      GOTRUE_MAILER_AUTOCONFIRM: "true"
+      GOTRUE_SMTP_ADMIN_EMAIL: admin@localhost
+      GOTRUE_SMTP_HOST: inbucket
+      GOTRUE_SMTP_PORT: 2500
+      GOTRUE_SMTP_SENDER_NAME: AgentForge
+      GOTRUE_MAILER_URLPATHS_INVITE: /auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_CONFIRMATION: /auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_RECOVERY: /auth/v1/verify
+      GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: /auth/v1/verify
+    depends_on:
+      db:
         condition: service_healthy
     restart: unless-stopped
 
-  # Background Crawl Worker
-  worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: ["npx", "tsx", "workers/crawl-worker.ts"]
+  # ── PostgREST ──
+  rest:
+    image: postgrest/postgrest:v12.2.3
     environment:
-      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
-      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - REDIS_URL=redis://redis:6379
+      PGRST_DB_URI: postgres://authenticator:${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}@db:5432/postgres
+      PGRST_DB_SCHEMAS: public,storage,graphql_public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: super-secret-jwt-token-with-at-least-32-characters-long
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+      PGRST_APP_SETTINGS_JWT_SECRET: super-secret-jwt-token-with-at-least-32-characters-long
+      PGRST_APP_SETTINGS_JWT_EXP: 3600
     depends_on:
-      redis:
+      db:
         condition: service_healthy
     restart: unless-stopped
 
-  # Recrawl Scheduler
-  recrawl-scheduler:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: ["npx", "tsx", "workers/recrawl-scheduler.ts"]
+  # ── postgres-meta (required by Studio) ──
+  meta:
+    image: supabase/postgres-meta:v0.83.2
     environment:
-      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
-      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-      - REDIS_URL=redis://redis:6379
+      PG_META_PORT: 8080
+      PG_META_DB_HOST: db
+      PG_META_DB_PORT: 5432
+      PG_META_DB_NAME: postgres
+      PG_META_DB_USER: supabase_admin
+      PG_META_DB_PASSWORD: ${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}
     depends_on:
-      redis:
+      db:
         condition: service_healthy
     restart: unless-stopped
 
-  # Nightly Eval Runner
-  nightly-eval:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    command: ["npx", "tsx", "workers/nightly-eval.ts"]
-    environment:
-      - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
-      - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
-      - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
-    depends_on:
-      redis:
-        condition: service_healthy
+  # ── Inbucket (fake SMTP for local email testing) ──
+  inbucket:
+    image: inbucket/inbucket:3.0.3
+    ports:
+      - "9000:9000"   # Web UI for viewing emails
+      - "2500:2500"   # SMTP
     restart: unless-stopped
 
-  # Redis (for BullMQ job queue)
+  # ── PostgreSQL with pgvector ──
+  db:
+    image: supabase/postgres:15.6.1.143
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_HOST: /var/run/postgresql
+      PGPORT: 5432
+      POSTGRES_PORT: 5432
+      PGPASSWORD: ${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-your-super-secret-and-long-postgres-password}
+      PGDATABASE: postgres
+      POSTGRES_DB: postgres
+      JWT_SECRET: super-secret-jwt-token-with-at-least-32-characters-long
+      JWT_EXP: 3600
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./supabase/migrations/001_initial_schema.sql:/docker-entrypoint-initdb.d/migrations/99-app-001-schema.sql:ro
+      - ./supabase/migrations/002_feature_additions.sql:/docker-entrypoint-initdb.d/migrations/99-app-002-features.sql:ro
+      - ./supabase/migrations/003_usage_event_types.sql:/docker-entrypoint-initdb.d/migrations/99-app-003-usage-event-types.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U supabase_admin -h localhost"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # ── Redis (for BullMQ job queue) ──
   redis:
     image: redis:7-alpine
     ports:
@@ -87,4 +167,5 @@ services:
     restart: unless-stopped
 
 volumes:
+  db-data:
   redis-data:

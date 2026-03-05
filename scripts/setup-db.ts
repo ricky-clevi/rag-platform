@@ -1,25 +1,38 @@
 /**
  * Database setup script.
- * Reads the SQL migration and provides instructions for applying it.
+ * Reads SQL migrations and prints a combined SQL payload.
  *
  * Usage: npx tsx scripts/setup-db.ts
- *
- * This script outputs the SQL that needs to be run against your Supabase
- * database. You can copy-paste it into the Supabase SQL Editor, or use
- * the Supabase CLI to apply migrations.
  */
 
-import { readFileSync } from 'fs';
+import { readFileSync, readdirSync } from 'fs';
 import { resolve } from 'path';
 
-const migrationPath = resolve(__dirname, '../supabase/migrations/001_initial_schema.sql');
+const migrationsDir = resolve(__dirname, '../supabase/migrations');
 
 try {
-  const sql = readFileSync(migrationPath, 'utf-8');
+  const migrationFiles = readdirSync(migrationsDir)
+    .filter((file) => file.endsWith('.sql'))
+    .sort();
+
+  if (migrationFiles.length === 0) {
+    throw new Error('No migration files found');
+  }
+
+  const sql = migrationFiles
+    .map((file) => {
+      const migrationPath = resolve(migrationsDir, file);
+      const content = readFileSync(migrationPath, 'utf-8').trim();
+      return `-- ===== ${file} =====\n${content}`;
+    })
+    .join('\n\n');
 
   console.log('='.repeat(60));
-  console.log('AgentForge — Database Setup');
+  console.log('AgentForge Database Setup');
   console.log('='.repeat(60));
+  console.log();
+  console.log('Migrations to apply (in order):');
+  migrationFiles.forEach((file) => console.log(`  - ${file}`));
   console.log();
   console.log('To set up your database, run the following SQL in your');
   console.log('Supabase SQL Editor (https://supabase.com/dashboard):');
@@ -37,6 +50,6 @@ try {
   console.log('  SUPABASE_SERVICE_ROLE_KEY');
   console.log();
 } catch (error) {
-  console.error('Error reading migration file:', error);
+  console.error('Error reading migrations:', error);
   process.exit(1);
 }
