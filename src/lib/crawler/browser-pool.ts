@@ -15,21 +15,35 @@ class BrowserPool {
 
   private async getBrowserPath(): Promise<string> {
     if (this.browserPath) return this.browserPath;
+
+    const isWindows = process.platform === 'win32';
+
     const paths = [
       process.env.CHROMIUM_PATH || '',
-      '/usr/bin/chromium-browser',
-      '/usr/bin/chromium',
-      '/usr/bin/google-chrome',
-      '/usr/bin/google-chrome-stable',
+      // Linux/macOS paths
+      ...(!isWindows ? [
+        '/usr/bin/chromium-browser',
+        '/usr/bin/chromium',
+        '/usr/bin/google-chrome',
+        '/usr/bin/google-chrome-stable',
+        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      ] : []),
+      // Windows paths
+      ...(isWindows ? [
+        `${process.env.PROGRAMFILES}\\Google\\Chrome\\Application\\chrome.exe`,
+        `${process.env['PROGRAMFILES(X86)']}\\Google\\Chrome\\Application\\chrome.exe`,
+        `${process.env.LOCALAPPDATA}\\Google\\Chrome\\Application\\chrome.exe`,
+        `${process.env.PROGRAMFILES}\\Microsoft\\Edge\\Application\\msedge.exe`,
+        `${process.env['PROGRAMFILES(X86)']}\\Microsoft\\Edge\\Application\\msedge.exe`,
+      ] : []),
     ].filter(Boolean);
 
+    const { existsSync } = await import('fs');
     for (const p of paths) {
-      try {
-        const { execSync } = await import('child_process');
-        execSync(`test -f ${p}`, { stdio: 'ignore' });
+      if (existsSync(p)) {
         this.browserPath = p;
         return p;
-      } catch { continue; }
+      }
     }
 
     try {
@@ -37,7 +51,7 @@ class BrowserPool {
       this.browserPath = chromium.default.path;
       return this.browserPath;
     } catch {
-      throw new Error('No Chromium browser found. Set CHROMIUM_PATH environment variable.');
+      throw new Error('No Chromium/Chrome browser found. Set CHROMIUM_PATH environment variable.');
     }
   }
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { addCrawlJob } from '@/lib/queue/crawl-queue';
 import { ensureCrawlReady } from '@/lib/queue/readiness';
+import { runDirectCrawl } from '@/lib/queue/direct-crawl';
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -28,14 +29,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
   }
 
-  // Verify crawl infrastructure is available before enqueuing
   const crawlReady = await ensureCrawlReady();
-  if (!crawlReady.ready) {
-    return NextResponse.json(
-      { error: crawlReady.error || 'Crawl infrastructure unavailable' },
-      { status: 503 }
-    );
-  }
 
   const { data: crawlJob } = await serviceClient
     .from('crawl_jobs')
@@ -47,13 +41,26 @@ export async function POST(request: NextRequest) {
     .select('id')
     .single();
 
-  const jobId = await addCrawlJob({
+  const crawlData = {
     agent_id: agentId,
     root_url: agent.root_url,
     user_id: user.id,
     crawl_job_id: crawlJob?.id || '',
     job_type: jobType,
-  });
+  };
+
+  let jobId: string;
+  if (crawlReady.mode === 'redis') {
+    try {
+      jobId = await addCrawlJob(crawlData);
+    } catch {
+      runDirectCrawl(crawlData);
+      jobId = `direct-${agentId}`;
+    }
+  } else {
+    runDirectCrawl(crawlData);
+    jobId = `direct-${agentId}`;
+  }
 
   return NextResponse.json({ jobId, crawlJobId: crawlJob?.id || '' });
 }

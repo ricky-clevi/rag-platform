@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { addCrawlJob } from '@/lib/queue/crawl-queue';
 import { ensureCrawlReady } from '@/lib/queue/readiness';
+import { runDirectCrawl } from '@/lib/queue/direct-crawl';
 import { generateUniqueSlug } from '@/lib/utils/slug';
 import { isValidUrl, extractDomain } from '@/lib/utils/url';
 import { recordAuditLog, recordUsageEvent } from '@/lib/usage-logger';
@@ -80,14 +81,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid URL' }, { status: 400 });
   }
 
-  // Verify crawl infrastructure is available before creating the agent
+  // Check crawl infrastructure (Redis or direct mode)
   const crawlReady = await ensureCrawlReady();
-  if (!crawlReady.ready) {
-    return NextResponse.json(
-      { error: crawlReady.error || 'Crawl infrastructure unavailable' },
-      { status: 503 }
-    );
-  }
 
   const domain = extractDomain(root_url);
   const agentName = name || domain;
@@ -127,43 +122,45 @@ export async function POST(request: NextRequest) {
     .select('id')
     .single();
 
-  // Start crawl job via queue
-  try {
-    const jobId = await addCrawlJob({
-      agent_id: agent.id,
-      root_url: normalizedUrl,
-      user_id: user.id,
-      crawl_job_id: crawlJob?.id || '',
-      job_type: 'full',
-      max_depth: max_depth || 5,
-      max_pages: max_pages || 500,
-      include_paths: include_paths || [],
-      exclude_paths: exclude_paths || [],
-    });
+  // Start crawl job
+  const crawlData = {
+    agent_id: agent.id,
+    root_url: normalizedUrl,
+    user_id: user.id,
+    crawl_job_id: crawlJob?.id || '',
+    job_type: 'full' as const,
+    max_depth: max_depth || 5,
+    max_pages: max_pages || 500,
+    include_paths: include_paths || [],
+    exclude_paths: exclude_paths || [],
+  };
 
-    // Audit log & usage event (#24)
-    recordAuditLog({
-      user_id: user.id,
-      agent_id: agent.id,
-      action: 'agent_created',
-      details: { name: agent.name, root_url: normalizedUrl },
-    });
-    recordUsageEvent({
-      agent_id: agent.id,
-      event_type: 'agent_created',
-      metadata: { user_id: user.id },
-    });
-
-    return NextResponse.json({ agent, jobId }, { status: 201 });
-  } catch {
-    await supabase
-      .from('agents')
-      .update({ status: 'error', crawl_stats: { error_message: 'Job queue unavailable. Please ensure Redis is running.' } })
-      .eq('id', agent.id);
-
-    return NextResponse.json(
-      { agent, error: 'Crawl job could not be queued. Is Redis running?' },
-      { status: 503 }
-    );
+  let jobId: string;
+  if (crawlReady.mode === 'redis') {
+    try {
+      jobId = await addCrawlJob(crawlData);
+    } catch {
+      // Redis failed after readiness check — fall back to direct
+      runDirectCrawl(crawlData);
+      jobId = `direct-${agent.id}`;
+    }
+  } else {
+    runDirectCrawl(crawlData);
+    jobId = `direct-${agent.id}`;
   }
+
+  // Audit log & usage event (#24)
+  recordAuditLog({
+    user_id: user.id,
+    agent_id: agent.id,
+    action: 'agent_created',
+    details: { name: agent.name, root_url: normalizedUrl },
+  });
+  recordUsageEvent({
+    agent_id: agent.id,
+    event_type: 'agent_created',
+    metadata: { user_id: user.id },
+  });
+
+  return NextResponse.json({ agent, jobId }, { status: 201 });
 }

@@ -2,20 +2,28 @@ import Redis from 'ioredis';
 import { getRedisConnectionOpts } from './connection';
 import { ensureEmbeddedWorker } from './embedded-worker';
 
-let lastCheckOk = false;
+let lastCheckResult: 'redis' | 'direct' | null = null;
 let lastCheckTime = 0;
 const CACHE_MS = 30_000;
 
+export interface CrawlReadiness {
+  ready: true;
+  mode: 'redis' | 'direct';
+}
+
 /**
- * Verify that crawl infrastructure (Redis) is reachable.
- * In dev mode (or when EMBEDDED_CRAWL_WORKER=true), also starts an
- * in-process BullMQ worker so jobs are processed without a separate terminal.
+ * Verify crawl infrastructure availability.
+ * - If Redis is reachable, uses BullMQ queue + embedded worker ('redis' mode).
+ * - If Redis is unreachable, falls back to direct in-process execution ('direct' mode).
+ * Always returns ready: true so crawls are never blocked.
  */
-export async function ensureCrawlReady(): Promise<{ ready: boolean; error?: string }> {
+export async function ensureCrawlReady(): Promise<CrawlReadiness> {
   const now = Date.now();
-  if (lastCheckOk && now - lastCheckTime < CACHE_MS) {
-    await ensureEmbeddedWorker();
-    return { ready: true };
+  if (lastCheckResult && now - lastCheckTime < CACHE_MS) {
+    if (lastCheckResult === 'redis') {
+      await ensureEmbeddedWorker();
+    }
+    return { ready: true, mode: lastCheckResult };
   }
 
   const opts = getRedisConnectionOpts();
@@ -31,16 +39,16 @@ export async function ensureCrawlReady(): Promise<{ ready: boolean; error?: stri
   try {
     await redis.connect();
     await redis.ping();
-    lastCheckOk = true;
+    lastCheckResult = 'redis';
     lastCheckTime = now;
+    await ensureEmbeddedWorker();
+    return { ready: true, mode: 'redis' };
   } catch {
-    lastCheckOk = false;
-    return { ready: false, error: 'Redis is not reachable. Crawl infrastructure unavailable.' };
+    console.warn('[readiness] Redis unavailable, using direct crawl execution mode');
+    lastCheckResult = 'direct';
+    lastCheckTime = now;
+    return { ready: true, mode: 'direct' };
   } finally {
     redis.disconnect();
   }
-
-  await ensureEmbeddedWorker();
-
-  return { ready: true };
 }

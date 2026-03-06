@@ -12,6 +12,25 @@ import { CircuitBreaker } from '@/lib/crawler/circuit-breaker';
 import type { CrawlJobData } from '@/types';
 import { createHash } from 'crypto';
 
+/**
+ * Create a Redis pub/sub client for real-time progress updates.
+ * Returns null if Redis is unavailable (direct execution mode).
+ */
+async function tryCreatePubClient(): Promise<Redis | null> {
+  try {
+    const client = new Redis({
+      ...getRedisConnectionOpts(),
+      lazyConnect: true,
+      connectTimeout: 3000,
+      maxRetriesPerRequest: 1,
+    });
+    await client.connect();
+    return client;
+  } catch {
+    return null;
+  }
+}
+
 function chunkContentHash(content: string): string {
   return createHash('sha256').update(content).digest('hex');
 }
@@ -34,14 +53,18 @@ function preprocessForEmbedding(content: string, agentName: string, pageTitle: s
   return `${agentName} - ${pageTitle}: ${clean}`;
 }
 
-async function processCrawlJob(job: Job<CrawlJobData>) {
-  const { agent_id, root_url, crawl_job_id, job_type, user_id, max_depth, max_pages, include_paths, exclude_paths } = job.data;
+/**
+ * Core crawl job execution logic, decoupled from BullMQ.
+ * Can be called directly (without Redis) or from the BullMQ worker.
+ */
+export async function executeCrawlJob(data: CrawlJobData) {
+  const { agent_id, root_url, crawl_job_id, job_type, user_id, max_depth, max_pages, include_paths, exclude_paths } = data;
   const supabase = createServiceClient();
 
   const startedAt = new Date().toISOString();
 
-  // Create Redis pub/sub client for real-time progress updates
-  const pubClient = new Redis(getRedisConnectionOpts());
+  // Create Redis pub/sub client for real-time progress updates (optional)
+  const pubClient = await tryCreatePubClient();
 
   // Fetch agent name for content preprocessing
   const { data: agentData } = await supabase
@@ -331,7 +354,7 @@ async function processCrawlJob(job: Job<CrawlJobData>) {
 
           // Publish real-time progress via Redis pub/sub
           await pubClient
-            .publish(
+            ?.publish(
               `crawl:${agent_id}`,
               JSON.stringify({
                 type: 'page_crawled',
@@ -470,7 +493,7 @@ async function processCrawlJob(job: Job<CrawlJobData>) {
 
     // Publish completion event via Redis pub/sub
     await pubClient
-      .publish(
+      ?.publish(
         `crawl:${agent_id}`,
         JSON.stringify({
           type: 'completed',
@@ -481,7 +504,7 @@ async function processCrawlJob(job: Job<CrawlJobData>) {
       .catch((err) => console.warn('Redis publish error:', err));
 
     // Clean up Redis pub/sub client
-    await pubClient.quit().catch(() => {});
+    await pubClient?.quit().catch(() => {});
 
     return result;
   } catch (error) {
@@ -520,7 +543,7 @@ async function processCrawlJob(job: Job<CrawlJobData>) {
 
     // Publish error event via Redis pub/sub
     await pubClient
-      .publish(
+      ?.publish(
         `crawl:${agent_id}`,
         JSON.stringify({
           type: 'error',
@@ -530,10 +553,14 @@ async function processCrawlJob(job: Job<CrawlJobData>) {
       .catch((err) => console.warn('Redis publish error:', err));
 
     // Clean up Redis pub/sub client
-    await pubClient.quit().catch(() => {});
+    await pubClient?.quit().catch(() => {});
 
     throw error;
   }
+}
+
+async function processCrawlJob(job: Job<CrawlJobData>) {
+  return executeCrawlJob(job.data);
 }
 
 export function startCrawlWorker() {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { addCrawlJob } from '@/lib/queue/crawl-queue';
 import { ensureCrawlReady } from '@/lib/queue/readiness';
+import { runDirectCrawl } from '@/lib/queue/direct-crawl';
 import { checkRateLimit, getClientIp, RATE_LIMITS } from '@/lib/rate-limiter';
 
 // POST /api/crawl - Re-trigger crawl for an agent
@@ -42,14 +43,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
   }
 
-  // Verify crawl infrastructure is available before modifying state
+  // Check crawl infrastructure (Redis or direct mode)
   const crawlReady = await ensureCrawlReady();
-  if (!crawlReady.ready) {
-    return NextResponse.json(
-      { error: crawlReady.error || 'Crawl infrastructure unavailable' },
-      { status: 503 }
-    );
-  }
 
   // For full recrawl, clear existing data
   if (job_type === 'full') {
@@ -74,14 +69,27 @@ export async function POST(request: NextRequest) {
     .select('id')
     .single();
 
-  // Queue new crawl
-  const jobId = await addCrawlJob({
+  // Queue or direct-execute crawl
+  const crawlData = {
     agent_id,
     root_url: agent.root_url,
     user_id: user.id,
     crawl_job_id: crawlJob?.id || '',
     job_type: job_type as 'full' | 'incremental' | 'single_page',
-  });
+  };
+
+  let jobId: string;
+  if (crawlReady.mode === 'redis') {
+    try {
+      jobId = await addCrawlJob(crawlData);
+    } catch {
+      runDirectCrawl(crawlData);
+      jobId = `direct-${agent_id}`;
+    }
+  } else {
+    runDirectCrawl(crawlData);
+    jobId = `direct-${agent_id}`;
+  }
 
   return NextResponse.json({ jobId });
 }
