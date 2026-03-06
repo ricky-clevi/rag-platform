@@ -32,7 +32,7 @@ export function ChatInterface({
   const chatMessages = useMemo(
     () => ({
       requestFailed: t('requestFailed'),
-      retryAfter: t('retryAfter'),
+      retryAfter: t.raw('retryAfter'),
       noResponseBody: t('noResponseBody'),
       streamError: t('error'),
       genericError: t('error'),
