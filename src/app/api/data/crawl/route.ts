@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { addCrawlJob } from '@/lib/queue/crawl-queue';
+import { ensureCrawlReady } from '@/lib/queue/readiness';
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -25,6 +26,15 @@ export async function POST(request: NextRequest) {
 
   if (!agent) {
     return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
+  }
+
+  // Verify crawl infrastructure is available before enqueuing
+  const crawlReady = await ensureCrawlReady();
+  if (!crawlReady.ready) {
+    return NextResponse.json(
+      { error: crawlReady.error || 'Crawl infrastructure unavailable' },
+      { status: 503 }
+    );
   }
 
   const { data: crawlJob } = await serviceClient

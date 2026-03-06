@@ -258,10 +258,16 @@ export default function NewAgentPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid gap-4 md:grid-cols-4">
-              <Stat title={t('preflight.urls')} value={formatNumber(preview.totalUrls)} />
+              <Stat
+                title={t('preflight.urls')}
+                value={formatNumber(preview.totalUrls ?? preview.urls?.length ?? 0)}
+              />
               <Stat title={t('preflight.hostname')} value={preview.hostname} />
               <Stat title={t('preflight.rendering')} value={preview.likelySpa ? 'SPA' : 'HTML'} />
-              <Stat title={t('preflight.scope')} value={preview.urls.length ? t('preflight.liveLinks') : '0'} />
+              <Stat
+                title={t('preflight.scope')}
+                value={(preview.urls?.length ?? 0) > 0 ? t('preflight.liveLinks') : '0'}
+              />
             </div>
             <div className="flex flex-wrap gap-2">
               <Badge variant={preview.hasSitemap ? 'success' : 'outline'}>
@@ -272,7 +278,7 @@ export default function NewAgentPage() {
               </Badge>
             </div>
             <div className="max-h-56 space-y-2 overflow-auto pr-1">
-              {preview.urls.slice(0, 10).map((entry) => (
+              {(preview.urls ?? []).slice(0, 10).map((entry) => (
                 <div
                   key={entry}
                   className="rounded-2xl border border-border/70 px-3 py-2 text-xs text-muted-foreground"

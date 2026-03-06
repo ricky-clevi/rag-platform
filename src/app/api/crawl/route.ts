@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { addCrawlJob } from '@/lib/queue/crawl-queue';
+import { ensureCrawlReady } from '@/lib/queue/readiness';
 import { checkRateLimit, getClientIp, RATE_LIMITS } from '@/lib/rate-limiter';
 
 // POST /api/crawl - Re-trigger crawl for an agent
@@ -39,6 +40,15 @@ export async function POST(request: NextRequest) {
 
   if (!agent) {
     return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
+  }
+
+  // Verify crawl infrastructure is available before modifying state
+  const crawlReady = await ensureCrawlReady();
+  if (!crawlReady.ready) {
+    return NextResponse.json(
+      { error: crawlReady.error || 'Crawl infrastructure unavailable' },
+      { status: 503 }
+    );
   }
 
   // For full recrawl, clear existing data

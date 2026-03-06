@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { addCrawlJob } from '@/lib/queue/crawl-queue';
+import { ensureCrawlReady } from '@/lib/queue/readiness';
 import { generateUniqueSlug } from '@/lib/utils/slug';
 import { isValidUrl, extractDomain } from '@/lib/utils/url';
 import { recordAuditLog, recordUsageEvent } from '@/lib/usage-logger';
@@ -79,6 +80,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid URL' }, { status: 400 });
   }
 
+  // Verify crawl infrastructure is available before creating the agent
+  const crawlReady = await ensureCrawlReady();
+  if (!crawlReady.ready) {
+    return NextResponse.json(
+      { error: crawlReady.error || 'Crawl infrastructure unavailable' },
+      { status: 503 }
+    );
+  }
+
   const domain = extractDomain(root_url);
   const agentName = name || domain;
   const slug = generateUniqueSlug(agentName);
@@ -153,7 +163,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(
       { agent, error: 'Crawl job could not be queued. Is Redis running?' },
-      { status: 201 }
+      { status: 503 }
     );
   }
 }

@@ -75,10 +75,28 @@ Run app:
 npm run dev
 ```
 
-Run crawl worker (required for crawling jobs):
+### Crawl Worker
+
+In development (`NODE_ENV !== 'production'`), the crawl worker starts automatically
+inside the Next.js server process — no separate terminal needed. Crawl jobs are
+processed as soon as they are enqueued.
+
+To use a standalone worker instead (e.g. for production or debugging), disable the
+embedded worker and run it separately:
+
+```bash
+# .env.local
+EMBEDDED_CRAWL_WORKER=false
+```
 
 ```bash
 npm run worker
+```
+
+You can also force the embedded worker on in production:
+
+```bash
+EMBEDDED_CRAWL_WORKER=true
 ```
 
 Optional background jobs:

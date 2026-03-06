@@ -254,8 +254,15 @@ async function processCrawlJob(job: Job<CrawlJobData>) {
 
             if (chunksToInsert.length > 0) {
               // Batch insert — Supabase supports array insert
-              await supabase.from('chunks').insert(chunksToInsert);
-              totalChunksProcessed += chunksToInsert.length;
+              const { error: insertError } = await supabase.from('chunks').insert(chunksToInsert);
+              if (insertError) {
+                console.error(
+                  `Failed to insert ${chunksToInsert.length} chunks for ${crawlResult.url}: ${insertError.message}`
+                );
+                totalFailed++;
+              } else {
+                totalChunksProcessed += chunksToInsert.length;
+              }
             }
 
             if (failedIndices.length > 0) {
