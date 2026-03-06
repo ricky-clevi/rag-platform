@@ -1,17 +1,100 @@
+import { getTranslations } from 'next-intl/server';
+import { AlertCircle, Bot } from 'lucide-react';
 import { createServiceClient } from '@/lib/supabase/server';
-import { Header } from '@/components/layout/header';
-import { Bot, AlertCircle } from 'lucide-react';
 import { PublicAgentClient } from './client';
 import { recordUsageEvent } from '@/lib/usage-logger';
 
 interface AgentPageProps {
-  params: Promise<{ slug: string }>;
+  params: Promise<{ slug: string; locale: string }>;
   searchParams: Promise<{ token?: string; domain?: string }>;
 }
 
-export default async function PublicAgentPage({ params, searchParams }: AgentPageProps) {
-  const { slug } = await params;
+function StateCard({
+  title,
+  copy,
+  actions = [],
+}: {
+  title: string;
+  copy: string;
+  actions?: Array<{ href: string; label: string; external?: boolean }>;
+}) {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
+      <div className="w-full max-w-lg rounded-[2rem] border border-border/70 bg-white/82 p-10 text-center shadow-[0_20px_48px_rgba(31,37,32,0.08)]">
+        <AlertCircle className="mx-auto mb-5 h-12 w-12 text-muted-foreground" />
+        <h1 className="text-2xl font-semibold">{title}</h1>
+        <p className="mt-3 text-sm leading-7 text-muted-foreground">{copy}</p>
+        {actions.length ? (
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            {actions.map((action) => (
+              <a
+                key={`${action.href}-${action.label}`}
+                href={action.href}
+                target={action.external ? '_blank' : undefined}
+                rel={action.external ? 'noreferrer' : undefined}
+                className={`inline-flex min-h-11 items-center rounded-full px-4 text-sm font-medium ${
+                  action.external
+                    ? 'border border-border/70 bg-white text-muted-foreground transition-colors hover:text-foreground'
+                    : 'bg-primary text-primary-foreground transition-colors hover:bg-[#175645]'
+                }`}
+              >
+                {action.label}
+              </a>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </main>
+  );
+}
+
+function PendingCard({
+  title,
+  copy,
+  actions = [],
+}: {
+  title: string;
+  copy: string;
+  actions?: Array<{ href: string; label: string; external?: boolean }>;
+}) {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
+      <div className="w-full max-w-lg rounded-[2rem] border border-border/70 bg-white/82 p-10 text-center shadow-[0_20px_48px_rgba(31,37,32,0.08)]">
+        <Bot className="mx-auto mb-5 h-12 w-12 animate-pulse text-muted-foreground" />
+        <h1 className="text-2xl font-semibold">{title}</h1>
+        <p className="mt-3 text-sm leading-7 text-muted-foreground">{copy}</p>
+        {actions.length ? (
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
+            {actions.map((action) => (
+              <a
+                key={`${action.href}-${action.label}`}
+                href={action.href}
+                target={action.external ? '_blank' : undefined}
+                rel={action.external ? 'noreferrer' : undefined}
+                className={`inline-flex min-h-11 items-center rounded-full px-4 text-sm font-medium ${
+                  action.external
+                    ? 'border border-border/70 bg-white text-muted-foreground transition-colors hover:text-foreground'
+                    : 'bg-primary text-primary-foreground transition-colors hover:bg-[#175645]'
+                }`}
+              >
+                {action.label}
+              </a>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </main>
+  );
+}
+
+export default async function PublicAgentPage({
+  params,
+  searchParams,
+}: AgentPageProps) {
+  const { slug, locale } = await params;
   const { token, domain } = await searchParams;
+  const t = await getTranslations('publicAgent');
+  const chatT = await getTranslations('chat');
   const supabase = createServiceClient();
 
   let agent;
@@ -24,7 +107,6 @@ export default async function PublicAgentPage({ params, searchParams }: AgentPag
       }
     | null = null;
 
-  // Custom domain lookup (#30)
   if (slug === '_domain' && domain) {
     const { data } = await supabase
       .from('agents')
@@ -34,7 +116,6 @@ export default async function PublicAgentPage({ params, searchParams }: AgentPag
       .single();
     agent = data;
   } else {
-    // Normal slug-based lookup
     const { data } = await supabase
       .from('agents')
       .select('*')
@@ -53,35 +134,23 @@ export default async function PublicAgentPage({ params, searchParams }: AgentPag
       .single();
 
     if (shareLink) {
-      // Check expiration (#15)
       if (shareLink.expires_at && new Date(shareLink.expires_at) < new Date()) {
         return (
-          <>
-            <Header />
-            <main className="flex flex-1 items-center justify-center">
-              <div className="text-center">
-                <AlertCircle className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-                <h1 className="mb-2 text-2xl font-bold">Link Expired</h1>
-                <p className="text-muted-foreground">This share link has expired.</p>
-              </div>
-            </main>
-          </>
+          <StateCard
+            title={t('expired.title')}
+            copy={t('expired.copy')}
+            actions={[{ href: `/${locale}`, label: chatT('backToPlatform') }]}
+          />
         );
       }
 
-      // Check max uses (#15)
       if (shareLink.max_uses && shareLink.use_count >= shareLink.max_uses) {
         return (
-          <>
-            <Header />
-            <main className="flex flex-1 items-center justify-center">
-              <div className="text-center">
-                <AlertCircle className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-                <h1 className="mb-2 text-2xl font-bold">Link Limit Reached</h1>
-                <p className="text-muted-foreground">This share link has reached its usage limit.</p>
-              </div>
-            </main>
-          </>
+          <StateCard
+            title={t('limit.title')}
+            copy={t('limit.copy')}
+            actions={[{ href: `/${locale}`, label: chatT('backToPlatform') }]}
+          />
         );
       }
 
@@ -89,71 +158,52 @@ export default async function PublicAgentPage({ params, searchParams }: AgentPag
     }
   }
 
-  // Share link token access (#14)
-  if (!agent && token) {
-    if (validShareLink) {
-      // Load the agent (even if private, share link grants access)
-      const { data: sharedAgent } = await supabase
-        .from('agents')
-        .select('*')
-        .eq('id', validShareLink.agent_id)
-        .single();
-      agent = sharedAgent;
-    }
+  if (!agent && token && validShareLink) {
+    const { data: sharedAgent } = await supabase
+      .from('agents')
+      .select('*')
+      .eq('id', validShareLink.agent_id)
+      .single();
+    agent = sharedAgent;
   }
 
   if (!agent) {
     return (
-      <>
-        <Header />
-        <main className="flex flex-1 items-center justify-center">
-          <div className="text-center">
-            <AlertCircle className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-            <h1 className="mb-2 text-2xl font-bold">Agent Not Found</h1>
-            <p className="text-muted-foreground">
-              This agent does not exist or is not publicly available.
-            </p>
-          </div>
-        </main>
-      </>
+      <StateCard
+        title={t('notFound.title')}
+        copy={t('notFound.copy')}
+        actions={[{ href: `/${locale}`, label: chatT('backToPlatform') }]}
+      />
     );
   }
 
-  if (token && (!validShareLink || validShareLink.agent_id !== agent.id) && agent.visibility !== 'public') {
+  if (
+    token
+    && (!validShareLink || validShareLink.agent_id !== agent.id)
+    && agent.visibility !== 'public'
+  ) {
     return (
-      <>
-        <Header />
-        <main className="flex flex-1 items-center justify-center">
-          <div className="text-center">
-            <AlertCircle className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-            <h1 className="mb-2 text-2xl font-bold">Invalid Share Link</h1>
-            <p className="text-muted-foreground">
-              This share link is invalid, expired, or has reached its usage limit.
-            </p>
-          </div>
-        </main>
-      </>
+      <StateCard
+        title={t('invalid.title')}
+        copy={t('invalid.copy')}
+        actions={[{ href: `/${locale}`, label: chatT('backToPlatform') }]}
+      />
     );
   }
 
-  if (agent.visibility === 'private' && (!token || !validShareLink || validShareLink.agent_id !== agent.id)) {
+  if (
+    agent.visibility === 'private'
+    && (!token || !validShareLink || validShareLink.agent_id !== agent.id)
+  ) {
     return (
-      <>
-        <Header />
-        <main className="flex flex-1 items-center justify-center">
-          <div className="text-center">
-            <AlertCircle className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
-            <h1 className="mb-2 text-2xl font-bold">Agent Not Public</h1>
-            <p className="text-muted-foreground">
-              This agent requires a valid share link.
-            </p>
-          </div>
-        </main>
-      </>
+      <StateCard
+        title={t('private.title')}
+        copy={t('private.copy')}
+        actions={[{ href: `/${locale}`, label: chatT('backToPlatform') }]}
+      />
     );
   }
 
-  // Record share view event (#23)
   if (token && validShareLink && validShareLink.agent_id === agent.id) {
     recordUsageEvent({
       agent_id: agent.id,
@@ -164,31 +214,30 @@ export default async function PublicAgentPage({ params, searchParams }: AgentPag
 
   if (agent.status !== 'ready') {
     return (
-      <>
-        <Header />
-        <main className="flex flex-1 items-center justify-center">
-          <div className="text-center">
-            <Bot className="mx-auto mb-4 h-12 w-12 animate-pulse text-muted-foreground" />
-            <h1 className="mb-2 text-2xl font-bold">{agent.name}</h1>
-            <p className="text-muted-foreground">
-              This agent is still being set up. Please check back later.
-            </p>
-          </div>
-        </main>
-      </>
+      <PendingCard
+        title={agent.name}
+        copy={t('pending.copy')}
+        actions={[
+          { href: `/${locale}`, label: chatT('backToPlatform') },
+          { href: agent.root_url, label: chatT('visitSource'), external: true },
+        ]}
+      />
     );
   }
 
-  // Get agent settings
   const { data: agentSettings } = await supabase
     .from('agent_settings')
     .select('welcome_message, starter_questions')
     .eq('agent_id', agent.id)
     .single();
 
-  const agentDomain = new URL(agent.root_url).hostname.replace('www.', '');
+  let agentDomain = agent.root_url;
+  try {
+    agentDomain = new URL(agent.root_url).hostname.replace('www.', '');
+  } catch {
+    agentDomain = agent.root_url;
+  }
 
-  // Skip passcode gate if accessed via valid share token
   const skipPasscode = !!(token && validShareLink && validShareLink.agent_id === agent.id);
 
   return (
@@ -199,6 +248,7 @@ export default async function PublicAgentPage({ params, searchParams }: AgentPag
         visibility: skipPasscode ? 'public' : agent.visibility,
       }}
       domain={agentDomain}
+      rootUrl={agent.root_url}
       welcomeMessage={agentSettings?.welcome_message || undefined}
       starterQuestions={agentSettings?.starter_questions || []}
       shareToken={skipPasscode ? token : undefined}

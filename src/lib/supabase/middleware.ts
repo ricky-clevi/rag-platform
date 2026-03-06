@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
+import { buildAuthIntent, buildAuthIntentQuery } from '@/lib/auth-intent';
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -40,8 +41,8 @@ export async function updateSession(request: NextRequest) {
   const locale = localeMatch ? localeMatch[1] : 'en';
 
   // Protected routes that need auth
-  const isProtectedRoute =
-    pathname.includes('/dashboard') || pathname.includes('/agents');
+  const protectedSegments = ['/dashboard', '/agents', '/data', '/monitor', '/insights'];
+  const isProtectedRoute = protectedSegments.some((segment) => pathname.includes(segment));
 
   // Auth routes (login/signup)
   const isAuthRoute =
@@ -56,13 +57,34 @@ export async function updateSession(request: NextRequest) {
 
   if (!user && isProtectedRoute) {
     const url = request.nextUrl.clone();
+    const intent = buildAuthIntent(
+      `${pathname}${request.nextUrl.search}`,
+      pathname.includes('/agents/new')
+        ? 'create-agent'
+        : pathname.includes('/data')
+          ? 'open-data'
+          : pathname.includes('/monitor')
+            ? 'open-monitor'
+            : pathname.includes('/insights')
+              ? 'open-insights'
+            : pathname.includes('/dashboard')
+                ? 'open-home'
+                : 'continue',
+    );
     url.pathname = `/${locale}/login`;
+    url.search = `?${buildAuthIntentQuery(intent).toString()}`;
     return NextResponse.redirect(url);
   }
 
   if (user && isAuthRoute) {
+    const target = request.nextUrl.searchParams.get('next');
+    if (target) {
+      return NextResponse.redirect(new URL(target, request.url));
+    }
+
     const url = request.nextUrl.clone();
     url.pathname = `/${locale}/dashboard`;
+    url.search = '';
     return NextResponse.redirect(url);
   }
 

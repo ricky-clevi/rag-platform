@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { useParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -38,24 +38,32 @@ export default function KnowledgePage() {
   const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
 
-  // Fetch pages
-  const fetchPages = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/agents/${agentId}/pages?limit=500`);
-      if (res.ok) {
-        const data = await res.json();
-        setPages(data.pages || []);
-      }
-    } catch {
-      /* ignore */
-    }
-    setLoading(false);
-  }, [agentId]);
-
   useEffect(() => {
-    fetchPages();
-  }, [fetchPages]);
+    let active = true;
+
+    async function fetchPages() {
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/agents/${agentId}/pages?limit=500`);
+        if (!res.ok || !active) return;
+        const data = await res.json();
+        if (active) {
+          setPages(data.pages || []);
+        }
+      } catch {
+        /* ignore */
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }
+
+    void fetchPages();
+    return () => {
+      active = false;
+    };
+  }, [agentId]);
 
   // Search across knowledge base
   const handleSearch = async () => {

@@ -15,7 +15,31 @@ export interface ChatMessage {
   answered_from_sources_only?: boolean;
 }
 
-export function useChat(agentId: string, shareToken?: string) {
+interface UseChatMessages {
+  requestFailed: string;
+  retryAfter: string;
+  noResponseBody: string;
+  streamError: string;
+  genericError: string;
+}
+
+const defaultMessages: UseChatMessages = {
+  requestFailed: 'Chat request failed',
+  retryAfter: 'Please try again in {seconds} seconds.',
+  noResponseBody: 'No response body',
+  streamError: 'An error occurred',
+  genericError: 'Sorry, an error occurred. Please try again.',
+};
+
+function interpolateRetryAfter(template: string, seconds: string) {
+  return template.replace('{seconds}', seconds);
+}
+
+export function useChat(
+  agentId: string,
+  shareToken?: string,
+  uiMessages: UseChatMessages = defaultMessages
+) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -59,7 +83,7 @@ export function useChat(agentId: string, shareToken?: string) {
         });
 
         if (!response.ok) {
-          let errorMessage = 'Chat request failed';
+          let errorMessage = uiMessages.requestFailed;
           try {
             const errorBody = await response.json();
             errorMessage = errorBody.error || errorMessage;
@@ -69,24 +93,88 @@ export function useChat(agentId: string, shareToken?: string) {
           if (response.status === 429) {
             const retryAfter = response.headers.get('Retry-After');
             errorMessage = retryAfter
-              ? `${errorMessage} Please try again in ${retryAfter} seconds.`
+              ? `${errorMessage} ${interpolateRetryAfter(uiMessages.retryAfter, retryAfter)}`
               : errorMessage;
           }
           throw new Error(errorMessage);
         }
 
         const reader = response.body?.getReader();
-        if (!reader) throw new Error('No response body');
+        if (!reader) throw new Error(uiMessages.noResponseBody);
 
         const decoder = new TextDecoder();
         let accumulatedContent = '';
+        let buffer = '';
+
+        const applyParsedEvent = (parsed: Record<string, unknown>) => {
+          if (parsed.type === 'text') {
+            accumulatedContent += String(parsed.content || '');
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === assistantMessage.id
+                  ? { ...msg, content: accumulatedContent }
+                  : msg
+              )
+            );
+            return;
+          }
+
+          if (parsed.type === 'sources') {
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === assistantMessage.id
+                  ? {
+                      ...msg,
+                      sources: (parsed.sources as SourceCitation[]) || [],
+                      isStreaming: false,
+                      confidence:
+                        typeof parsed.confidence === 'number'
+                          ? parsed.confidence
+                          : undefined,
+                      model_used:
+                        typeof parsed.model_used === 'string'
+                          ? parsed.model_used
+                          : undefined,
+                      answered_from_sources_only:
+                        typeof parsed.answered_from_sources_only === 'boolean'
+                          ? parsed.answered_from_sources_only
+                          : undefined,
+                    }
+                  : msg
+              )
+            );
+
+            if (typeof parsed.conversation_id === 'string') {
+              setConversationId(parsed.conversation_id);
+            }
+            return;
+          }
+
+          if (parsed.type === 'error') {
+            setMessages((prev) =>
+              prev.map((msg) =>
+                msg.id === assistantMessage.id
+                  ? {
+                      ...msg,
+                      content:
+                        typeof parsed.content === 'string'
+                          ? parsed.content
+                          : uiMessages.streamError,
+                      isStreaming: false,
+                    }
+                  : msg
+              )
+            );
+          }
+        };
 
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
 
-          const text = decoder.decode(value, { stream: true });
-          const lines = text.split('\n');
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
 
           for (const line of lines) {
             if (line.startsWith('data: ')) {
@@ -94,52 +182,19 @@ export function useChat(agentId: string, shareToken?: string) {
               if (data === '[DONE]') continue;
 
               try {
-                const parsed = JSON.parse(data);
-
-                if (parsed.type === 'text') {
-                  accumulatedContent += parsed.content;
-                  setMessages((prev) =>
-                    prev.map((msg) =>
-                      msg.id === assistantMessage.id
-                        ? { ...msg, content: accumulatedContent }
-                        : msg
-                    )
-                  );
-                } else if (parsed.type === 'sources') {
-                  setMessages((prev) =>
-                    prev.map((msg) =>
-                      msg.id === assistantMessage.id
-                        ? {
-                            ...msg,
-                            sources: parsed.sources,
-                            isStreaming: false,
-                            confidence: parsed.confidence ?? undefined,
-                            model_used: parsed.model_used,
-                            answered_from_sources_only: parsed.answered_from_sources_only,
-                          }
-                        : msg
-                    )
-                  );
-                  if (parsed.conversation_id) {
-                    setConversationId(parsed.conversation_id);
-                  }
-                } else if (parsed.type === 'error') {
-                  setMessages((prev) =>
-                    prev.map((msg) =>
-                      msg.id === assistantMessage.id
-                        ? {
-                            ...msg,
-                            content: parsed.content || 'An error occurred',
-                            isStreaming: false,
-                          }
-                        : msg
-                    )
-                  );
-                }
+                applyParsedEvent(JSON.parse(data) as Record<string, unknown>);
               } catch {
                 // Skip invalid JSON
               }
             }
+          }
+        }
+
+        if (buffer.startsWith('data: ')) {
+          try {
+            applyParsedEvent(JSON.parse(buffer.slice(6)) as Record<string, unknown>);
+          } catch {
+            // Ignore trailing partial buffer
           }
         }
 
@@ -156,7 +211,7 @@ export function useChat(agentId: string, shareToken?: string) {
 
         const displayError = error instanceof Error
           ? error.message
-          : 'Sorry, an error occurred. Please try again.';
+          : uiMessages.genericError;
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === assistantMessage.id
@@ -172,7 +227,7 @@ export function useChat(agentId: string, shareToken?: string) {
         setIsLoading(false);
       }
     },
-    [agentId, conversationId, shareToken]
+    [agentId, conversationId, shareToken, uiMessages]
   );
 
   const resetChat = useCallback(() => {

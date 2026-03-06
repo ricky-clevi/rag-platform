@@ -1,11 +1,12 @@
 'use client';
 
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useMemo } from 'react';
 import { useTranslations } from 'next-intl';
 import { MessageBubble } from './message-bubble';
 import { ChatInput } from './chat-input';
 import { Button } from '@/components/ui/button';
-import { Bot, Plus } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Bot, Globe, Plus, ShieldCheck } from 'lucide-react';
 import { useChat } from '@/hooks/use-chat';
 
 interface ChatInterfaceProps {
@@ -28,7 +29,21 @@ export function ChatInterface({
   shareToken,
 }: ChatInterfaceProps) {
   const t = useTranslations('chat');
-  const { messages, isLoading, sendMessage, resetChat } = useChat(agentId, shareToken);
+  const chatMessages = useMemo(
+    () => ({
+      requestFailed: t('requestFailed'),
+      retryAfter: t('retryAfter'),
+      noResponseBody: t('noResponseBody'),
+      streamError: t('error'),
+      genericError: t('error'),
+    }),
+    [t]
+  );
+  const { messages, isLoading, sendMessage, resetChat } = useChat(
+    agentId,
+    shareToken,
+    chatMessages
+  );
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -41,97 +56,116 @@ export function ChatInterface({
     if (!isLoading) sendMessage(question);
   };
 
-  // Extract domain from agentUrl for display
-  let displayDomain: string | null = null;
+  let displayDomain = companyName;
   if (agentUrl) {
     try {
       displayDomain = new URL(agentUrl).hostname.replace(/^www\./, '');
     } catch {
-      displayDomain = agentUrl;
+      displayDomain = companyName;
     }
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-border bg-background/95 backdrop-blur-sm px-4 py-3 shrink-0">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-primary/80 to-primary text-primary-foreground shadow-sm">
-            <Bot className="h-5 w-5" />
-          </div>
+    <div className="flex h-full flex-col overflow-hidden rounded-[1.9rem] border border-border/70 bg-white/78 shadow-[0_20px_48px_rgba(31,37,32,0.08)]">
+      <div className="border-b border-border/70 bg-background/92 px-4 py-4 backdrop-blur-sm sm:px-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
-            <h2 className="text-sm font-semibold leading-tight truncate">{agentName}</h2>
-            {displayDomain && (
-              <p className="text-xs text-muted-foreground truncate leading-tight">{displayDomain}</p>
-            )}
-            {!displayDomain && (
-              <p className="text-xs text-muted-foreground leading-tight">{t('poweredBy')}</p>
-            )}
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
+                <Bot className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="truncate text-base font-semibold">{agentName}</h2>
+                <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-1">
+                    <Globe className="h-3.5 w-3.5" />
+                    {displayDomain}
+                  </span>
+                  <span>{t('poweredBy')}</span>
+                </div>
+              </div>
+            </div>
+            <p className="mt-4 max-w-xl text-sm leading-6 text-muted-foreground">
+              {t('groundedCopy', { companyName })}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Badge variant="outline" className="bg-white/90">
+                {t('groundedLabel')}
+              </Badge>
+              <Badge variant="outline" className="bg-white/90">
+                <ShieldCheck className="mr-1 h-3 w-3" />
+                {t('sources')}
+              </Badge>
+            </div>
           </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={resetChat}
+            className="shrink-0 gap-1.5"
+            aria-label={t('newConversation')}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            {t('newConversation')}
+          </Button>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={resetChat}
-          className="shrink-0 gap-1.5 text-xs h-8"
-        >
-          <Plus className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">{t('newConversation')}</span>
-        </Button>
       </div>
 
-      {/* Messages area */}
       <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-2xl px-4 py-6">
+        <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
           {messages.length === 0 ? (
-            /* Empty state / welcome screen */
-            <div className="flex flex-col items-center justify-center min-h-[60vh] py-16 text-center">
-              <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 border border-primary/20 shadow-sm">
+            <div className="flex min-h-[58vh] flex-col items-center justify-center py-16 text-center">
+              <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-[1.5rem] border border-primary/20 bg-primary/10 shadow-sm">
                 <Bot className="h-8 w-8 text-primary" />
               </div>
-              <h2 className="mb-2 text-xl font-semibold tracking-tight">{agentName}</h2>
-              <p className="mb-8 max-w-sm text-sm text-muted-foreground leading-relaxed">
+              <h2 className="mb-2 text-2xl font-semibold tracking-tight">{agentName}</h2>
+              <p className="mb-8 max-w-xl text-sm leading-7 text-muted-foreground">
                 {welcomeMessage || defaultWelcome}
               </p>
-              {starterQuestions.length > 0 && (
-                <div className="grid gap-2 sm:grid-cols-2 max-w-lg w-full">
-                  {starterQuestions.map((question, index) => (
-                    <button
-                      key={index}
-                      onClick={() => handleStarterClick(question)}
-                      disabled={isLoading}
-                      className="rounded-xl border border-border bg-card px-4 py-3 text-left text-sm text-foreground hover:border-primary/40 hover:bg-primary/5 transition-all duration-150 disabled:opacity-50 shadow-sm"
-                    >
-                      {question}
-                    </button>
-                  ))}
+              {starterQuestions.length > 0 ? (
+                <div className="w-full max-w-2xl space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    {t('starterTitle')}
+                  </p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {starterQuestions.map((question) => (
+                      <button
+                        key={question}
+                        type="button"
+                        onClick={() => handleStarterClick(question)}
+                        disabled={isLoading}
+                        className="rounded-[1.25rem] border border-border bg-card px-4 py-3 text-left text-sm text-foreground shadow-sm transition-all duration-150 hover:border-primary/40 hover:bg-primary/5 disabled:opacity-50"
+                      >
+                        {question}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              )}
+              ) : null}
             </div>
           ) : (
             <div className="space-y-6">
-              {messages.map((msg) => (
+              {messages.map((message) => (
                 <MessageBubble
-                  key={msg.id}
-                  role={msg.role}
-                  content={msg.content}
-                  sources={msg.sources}
-                  isStreaming={msg.isStreaming}
-                  confidence={msg.confidence}
-                  model_used={msg.model_used}
-                  answered_from_sources_only={msg.answered_from_sources_only}
+                  key={message.id}
+                  role={message.role}
+                  content={message.content}
+                  sources={message.sources}
+                  isStreaming={message.isStreaming}
+                  confidence={message.confidence}
+                  model_used={message.model_used}
+                  answered_from_sources_only={message.answered_from_sources_only}
                 />
               ))}
             </div>
           )}
-          {/* Scroll anchor */}
           <div ref={bottomRef} />
         </div>
       </div>
 
-      {/* Input area */}
-      <div className="shrink-0 border-t border-border bg-gradient-to-t from-background via-background to-transparent pt-3 pb-4 px-4">
-        <div className="mx-auto max-w-2xl">
+      <div className="border-t border-border/70 bg-gradient-to-t from-background via-background to-transparent px-4 pb-4 pt-3 sm:px-6">
+        <div className="mx-auto max-w-3xl">
           <ChatInput
             onSend={sendMessage}
             disabled={isLoading}

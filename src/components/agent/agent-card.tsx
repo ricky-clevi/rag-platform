@@ -106,7 +106,7 @@ export function AgentCard({ agent, onDelete }: AgentCardProps) {
           {agent.crawl_stats.total_chunks != null && (
             <div className="flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
               <Database className="h-3 w-3" />
-              {agent.crawl_stats.total_chunks} chunks
+              {agent.crawl_stats.total_chunks} {t('chunks')}
             </div>
           )}
         </div>
@@ -115,7 +115,7 @@ export function AgentCard({ agent, onDelete }: AgentCardProps) {
       {/* Inline delete confirmation */}
       {confirmDelete && (
         <div className="mb-3 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-xs text-destructive">
-          Delete &quot;{agent.name}&quot;? This cannot be undone.
+          {t('confirmDelete', { name: agent.name })}
         </div>
       )}
 
@@ -146,7 +146,7 @@ export function AgentCard({ agent, onDelete }: AgentCardProps) {
           disabled={deleting}
         >
           <Trash2 className="h-3.5 w-3.5" />
-          {confirmDelete && <span className="ml-1 text-xs">Confirm</span>}
+          {confirmDelete && <span className="ml-1 text-xs">{t('confirm')}</span>}
         </Button>
         {confirmDelete && (
           <Button
@@ -155,7 +155,7 @@ export function AgentCard({ agent, onDelete }: AgentCardProps) {
             className="h-8 px-2 text-xs"
             onClick={() => setConfirmDelete(false)}
           >
-            Cancel
+            {t('cancel')}
           </Button>
         )}
       </div>

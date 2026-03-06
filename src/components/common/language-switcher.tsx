@@ -8,7 +8,7 @@ import { Globe } from 'lucide-react';
 
 const localeLabels: Record<Locale, string> = {
   en: 'EN',
-  ko: '한국어',
+  ko: 'KO',
 };
 
 export function LanguageSwitcher() {
@@ -16,16 +16,22 @@ export function LanguageSwitcher() {
   const router = useRouter();
   const pathname = usePathname();
 
-  const nextLocale = locales.find((l) => l !== locale) || locales[0];
+  const nextLocale = locales.find((value) => value !== locale) || locales[0];
 
   const handleSwitch = () => {
     router.replace(pathname, { locale: nextLocale });
   };
 
   return (
-    <Button variant="ghost" size="sm" onClick={handleSwitch} className="gap-1">
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={handleSwitch}
+      className="h-11 rounded-full border border-transparent bg-white/40 px-4 text-xs uppercase tracking-[0.16em] text-muted-foreground hover:border-input hover:bg-white/80 hover:text-foreground"
+      aria-label={`Switch language to ${nextLocale.toUpperCase()}`}
+    >
       <Globe className="h-4 w-4" />
-      <span className="text-xs">{localeLabels[nextLocale]}</span>
+      <span>{localeLabels[nextLocale]}</span>
     </Button>
   );
 }

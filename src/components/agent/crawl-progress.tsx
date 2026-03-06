@@ -32,15 +32,14 @@ export function CrawlProgress({ agentId, onComplete }: CrawlProgressProps) {
   const [stats, setStats] = useState({ crawled: 0, discovered: 0, chunks: 0, errors: 0 });
   const [status, setStatus] = useState<'connecting' | 'crawling' | 'completed' | 'failed'>('connecting');
   const [errorMessage, setErrorMessage] = useState('');
-  const [startTime] = useState(Date.now());
-  const [now, setNow] = useState(Date.now());
+  const [startTime] = useState(() => Date.now());
+  const [now, setNow] = useState(() => Date.now());
   const [currentUrl, setCurrentUrl] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const completedRef = useRef(false);
-  const crawledAtLastMinuteRef = useRef(0);
   const pagesPerMinuteRef = useRef(0);
 
   // Tick every second for elapsed time / ETA display

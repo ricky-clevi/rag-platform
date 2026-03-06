@@ -1,0 +1,177 @@
+export const enCoreMessages = {
+  common: {
+    appName: 'AgentForge',
+    loading: 'Loading...',
+    error: 'Something went wrong',
+    save: 'Save',
+    cancel: 'Cancel',
+    delete: 'Delete',
+    edit: 'Edit',
+    create: 'Create',
+    back: 'Back',
+    next: 'Next',
+    submit: 'Submit',
+    search: 'Search',
+    noResults: 'No results found',
+    confirmDelete: 'Are you sure you want to delete this?',
+  },
+  nav: {
+    brand: 'AgentForge',
+    eyebrow: 'Web Intelligence',
+    home: 'Home',
+    dashboard: 'Dashboard',
+    agents: 'Agents',
+    data: 'Data',
+    monitor: 'Monitor',
+    insights: 'Insights',
+    newAgent: 'New Workflow',
+    settings: 'Settings',
+    organizations: 'Organizations',
+    product: 'Product',
+    capabilities: 'Capabilities',
+    examples: 'Examples',
+    pricing: 'Pricing',
+    signIn: 'Sign In',
+    signUp: 'Sign Up',
+    signOut: 'Sign Out',
+    language: 'Language',
+    openWorkspace: 'Open Workspace',
+    startBuilding: 'Start Building',
+    sidebarSummary:
+      'Run agent building, data collection, monitoring, and insight review from one calm operator surface.',
+    launchWorkspace: 'New Workflow',
+    launchSummary:
+      'Start from a source URL, validate crawl scope, pick an operating mode, and launch without context switching.',
+    toggleMenu: 'Toggle menu',
+  },
+  footer: {
+    eyebrow: 'Hybrid Web Intelligence',
+    title: 'AgentForge',
+    subtitle:
+      'A builder-first studio for website agents, crawl operations, search, extraction, monitoring, and analytics.',
+    capabilities: 'Capabilities',
+    examples: 'Examples',
+    pricing: 'Pricing',
+    copyright: 'Copyright {year} AgentForge.',
+  },
+  auth: {
+    login: {
+      title: 'Welcome back',
+      subtitle: 'Sign in to continue your operator workflow.',
+      email: 'Email',
+      emailPlaceholder: 'operator@company.com',
+      password: 'Password',
+      passwordPlaceholder: 'Enter your password',
+      submit: 'Sign In',
+      noAccount: 'Need an account?',
+      signUpLink: 'Create one',
+      forgotPassword: 'Forgot password?',
+    },
+    signup: {
+      title: 'Create your workspace',
+      subtitle: 'Sign up to launch agents, data runs, and monitoring workflows.',
+      fullName: 'Full name',
+      namePlaceholder: 'Your name',
+      email: 'Email',
+      emailPlaceholder: 'operator@company.com',
+      password: 'Password',
+      passwordPlaceholder: 'Create a password',
+      confirmPassword: 'Confirm password',
+      confirmPasswordPlaceholder: 'Repeat your password',
+      submit: 'Create Account',
+      hasAccount: 'Already have an account?',
+      signInLink: 'Sign in',
+      passwordMismatch: 'Passwords do not match',
+    },
+    errors: {
+      invalidCredentials: 'Invalid email or password',
+      emailTaken: 'This email is already registered',
+      weakPassword: 'Password must be at least 8 characters',
+      generic: 'Authentication error. Please try again.',
+    },
+    shared: {
+      loginEyebrow: 'Return to your workspace',
+      signupEyebrow: 'Create your workspace',
+      continueTitle: 'Continue flow',
+      continueFallback:
+        'You can continue from your default workspace after authentication.',
+      continueDestination:
+        'After authentication you will continue to {path}.',
+      proofTitle: 'Crawl with context',
+      proofCopy:
+        'Map URLs, trigger crawls, and inspect indexed knowledge without losing your place.',
+      operatorTitle: 'Operator visibility',
+      operatorCopy:
+        'Review recrawl cadence, changed pages, and failures from monitor and insight workspaces.',
+      agentTitle: 'Publish with control',
+      agentCopy:
+        'Launch public agents, protect access with passcodes, and manage share links from one console.',
+      backHome: 'Back to home',
+      intent: {
+        continue: 'Continue to your workspace',
+        'create-agent': 'Continue to the guided workflow builder',
+        'open-data': 'Continue to the data workspace',
+        'open-monitor': 'Continue to the monitoring workspace',
+        'open-insights': 'Continue to the insights workspace',
+        'open-home': 'Continue to the workspace home',
+        custom: 'Continue to {label}',
+      },
+    },
+  },
+  dashboard: {
+    title: 'Dashboard',
+    welcome: 'Welcome back',
+    stats: {
+      totalAgents: 'Total Agents',
+      activeAgents: 'Active Agents',
+      totalConversations: 'Total Conversations',
+      pagesIndexed: 'Pages Indexed',
+    },
+    recentAgents: 'Recent agents',
+    noAgents: 'No agents yet. Create your first one.',
+    createFirst: 'Create your first workflow',
+    home: {
+      eyebrow: 'Studio home',
+      title:
+        'Operate your web intelligence system from one calm, builder-first home.',
+      subtitle:
+        'Jump into agent creation, data workflows, monitoring, and insight review without losing context.',
+      stats: {
+        totalAgents: 'Total agents',
+        readyAgents: 'Ready agents',
+        indexedPages: 'Indexed pages',
+        activeRuns: 'Active runs',
+      },
+      workspaces: {
+        title: 'Core workspaces',
+        cta: 'Launch a new workflow',
+        open: 'Open workspace',
+        launch: {
+          title: 'Launch workflow',
+          description:
+            'Start a guided agent or hybrid data run from a single builder.',
+        },
+        data: {
+          title: 'Open Data',
+          description:
+            'Map a domain, search indexed knowledge, and extract structured answers.',
+        },
+        monitor: {
+          title: 'Review Monitor',
+          description:
+            'Check recrawl status, crawl jobs, and content changes.',
+        },
+        insights: {
+          title: 'Read Insights',
+          description:
+            'Inspect analytics, confidence gaps, and evaluation signals.',
+        },
+      },
+      recentAgents: 'Recent agents',
+      viewAll: 'View all',
+      empty:
+        'No agents yet. Start with a guided workflow and the studio will keep the rest organized.',
+      emptyCta: 'Create your first workflow',
+    },
+  },
+} as const;

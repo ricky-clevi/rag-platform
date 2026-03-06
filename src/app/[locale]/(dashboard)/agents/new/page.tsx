@@ -1,397 +1,371 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from '@/i18n/navigation';
-import { UrlInput } from '@/components/agent/url-input';
-import { CrawlProgress } from '@/components/agent/crawl-progress';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Spinner } from '@/components/common/loading-states';
+import { CrawlProgress } from '@/components/agent/crawl-progress';
 import { isValidUrl } from '@/lib/utils/url';
-import {
-  Globe,
-  FileText,
-  Clock,
-  CheckCircle2,
-  XCircle,
-  AlertTriangle,
-  Search,
-  Loader2,
-  Monitor,
-  Settings2,
-  ChevronDown,
-} from 'lucide-react';
+import { formatNumber } from '@/lib/utils/format';
+import type { WorkspaceMode } from '@/types';
 
 interface CrawlPreview {
-  url?: string;
-  domain?: string;
-  companyName: string;
-  description: string;
-  estimatedPages: number;
+  url: string;
+  hostname: string;
+  totalUrls: number;
+  urls: string[];
   hasSitemap: boolean;
-  isSpa: boolean;
-  estimatedMinutes: number;
   crawlAllowed: boolean;
-  reachable: boolean;
-  language?: string;
-  error?: string;
+  likelySpa: boolean;
 }
 
+const steps = ['source', 'preflight', 'mode', 'launch'] as const;
+
 export default function NewAgentPage() {
-  const t = useTranslations('agents.new');
+  const t = useTranslations('agents.newFlow');
   const router = useRouter();
+  const [step, setStep] = useState<(typeof steps)[number]>('source');
   const [url, setUrl] = useState('');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [agentId, setAgentId] = useState<string | null>(null);
-  const [preview, setPreview] = useState<CrawlPreview | null>(null);
-  const [loadingPreview, setLoadingPreview] = useState(false);
   const [maxDepth, setMaxDepth] = useState(5);
   const [maxPages, setMaxPages] = useState(500);
   const [includePaths, setIncludePaths] = useState('');
   const [excludePaths, setExcludePaths] = useState('');
-  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [mode, setMode] = useState<WorkspaceMode>('hybrid');
+  const [preview, setPreview] = useState<CrawlPreview | null>(null);
+  const [error, setError] = useState('');
+  const [agentId, setAgentId] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
 
-  const handlePreview = async () => {
-    if (!url) return;
-    setLoadingPreview(true);
-    setPreview(null);
-    setError('');
-    try {
-      const targetUrl = url.startsWith('http') ? url : `https://${url}`;
-      const res = await fetch('/api/crawl/preview', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: targetUrl }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || 'Failed to preview URL');
-        return;
-      }
-      setPreview(data);
-      if (data.companyName && !name) {
-        setName(data.companyName);
-      }
-    } catch {
-      setError('Failed to preview URL');
-    } finally {
-      setLoadingPreview(false);
-    }
-  };
+  const stepIndex = steps.indexOf(step);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-
+  const runPreview = () => {
     const targetUrl = url.startsWith('http') ? url : `https://${url}`;
-
     if (!isValidUrl(targetUrl)) {
-      setError(t('invalidUrl'));
+      setError(t('errors.invalidUrl'));
       return;
     }
 
-    setLoading(true);
+    setError('');
+    startTransition(() => {
+      void (async () => {
+        const response = await fetch('/api/crawl/preview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: targetUrl }),
+        });
+        const data = await response.json();
 
-    try {
-      const response = await fetch('/api/agents', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          root_url: targetUrl,
-          name: name || undefined,
-          description: description || undefined,
-          max_depth: maxDepth,
-          max_pages: maxPages,
-          include_paths: includePaths ? includePaths.split(',').map(p => p.trim()).filter(Boolean) : undefined,
-          exclude_paths: excludePaths ? excludePaths.split(',').map(p => p.trim()).filter(Boolean) : undefined,
-        }),
-      });
+        if (!response.ok) {
+          setError(data.error || t('errors.previewFailed'));
+          return;
+        }
 
-      const data = await response.json();
+        setPreview(data);
+        if (!name) {
+          setName(data.hostname);
+        }
+        setStep('preflight');
+      })();
+    });
+  };
 
-      if (!response.ok) {
-        setError(data.error || 'Failed to create agent');
-        setLoading(false);
-        return;
-      }
+  const launchWorkflow = () => {
+    const targetUrl = url.startsWith('http') ? url : `https://${url}`;
 
-      setAgentId(data.agent.id);
-    } catch {
-      setError('Failed to create agent. Please try again.');
-      setLoading(false);
-    }
+    setError('');
+    startTransition(() => {
+      void (async () => {
+        const response = await fetch('/api/agents', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            root_url: targetUrl,
+            name: name || undefined,
+            description: description || undefined,
+            max_depth: maxDepth,
+            max_pages: maxPages,
+            include_paths: includePaths
+              ? includePaths.split(',').map((value) => value.trim()).filter(Boolean)
+              : undefined,
+            exclude_paths: excludePaths
+              ? excludePaths.split(',').map((value) => value.trim()).filter(Boolean)
+              : undefined,
+            mode,
+          }),
+        });
+        const data = await response.json();
+
+        if (!response.ok || !data.agent?.id) {
+          setError(data.error || t('errors.launchFailed'));
+          return;
+        }
+
+        setAgentId(data.agent.id);
+      })();
+    });
   };
 
   if (agentId) {
     return (
-      <div className="mx-auto max-w-2xl">
+      <div className="mx-auto max-w-4xl">
         <CrawlProgress
           agentId={agentId}
-          onComplete={() => router.push(`/agents/${agentId}`)}
+          onComplete={() => {
+            if (mode === 'data') {
+              router.push(`/data?agentId=${agentId}`);
+              return;
+            }
+
+            router.push(`/agents/${agentId}`);
+          }}
         />
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      {/* Page header */}
-      <div>
-        <h1 className="text-2xl font-bold">{t('title')}</h1>
-        <p className="text-muted-foreground">{t('subtitle')}</p>
-      </div>
+    <div className="space-y-6">
+      <section className="surface-card rounded-[2rem] p-8 md:p-10">
+        <span className="eyebrow">{t('eyebrow')}</span>
+        <h1 className="mt-4 text-4xl font-semibold tracking-tight">{t('title')}</h1>
+        <p className="mt-3 max-w-3xl text-base leading-7 text-muted-foreground">
+          {t('subtitle')}
+        </p>
 
-      <Card className="border-border/60 shadow-sm">
-        <CardHeader>
-          <CardTitle>{t('title')}</CardTitle>
-          <CardDescription>{t('subtitle')}</CardDescription>
-        </CardHeader>
-        <form onSubmit={handleSubmit}>
-          <CardContent className="space-y-6">
-            {error && (
-              <div className="rounded-md bg-destructive/10 p-3 text-sm text-destructive">
-                {error}
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <Label htmlFor="url">{t('urlLabel')}</Label>
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <UrlInput
-                    value={url}
-                    onChange={(val) => {
-                      setUrl(val);
-                      // Clear preview when URL changes
-                      if (preview) setPreview(null);
-                    }}
-                    onSubmit={handleSubmit}
-                    placeholder={t('urlPlaceholder')}
-                    disabled={loading || loadingPreview}
-                  />
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handlePreview}
-                  disabled={!url || loading || loadingPreview}
-                  className="shrink-0"
-                >
-                  {loadingPreview ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Search className="mr-2 h-4 w-4" />
-                  )}
-                  {loadingPreview ? t('previewLoading') : t('previewButton')}
-                </Button>
-              </div>
+        <div className="mt-8 grid gap-3 md:grid-cols-4">
+          {steps.map((stepKey, index) => (
+            <div
+              key={stepKey}
+              className={`rounded-[1.3rem] border px-4 py-3 text-sm font-medium ${
+                index === stepIndex
+                  ? 'border-primary bg-secondary text-secondary-foreground'
+                  : 'border-border/70 bg-white/70 text-muted-foreground'
+              }`}
+            >
+              {t(`steps.${stepKey}`)}
             </div>
+          ))}
+        </div>
+      </section>
 
-            {/* Preview card */}
-            {preview && (
-              <Card className="border-primary/20 bg-primary/5">
-                <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <Globe className="h-4 w-4" />
-                    {t('previewTitle')}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {!preview.reachable && (
-                    <div className="flex items-center gap-2 rounded-md bg-destructive/10 p-2.5 text-sm text-destructive">
-                      <XCircle className="h-4 w-4 shrink-0" />
-                      {t('notReachable')}
-                    </div>
-                  )}
+      {error ? (
+        <div
+          className="rounded-[1.4rem] border border-destructive/20 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+          aria-live="polite"
+        >
+          {error}
+        </div>
+      ) : null}
 
-                  {preview.reachable && (
-                    <>
-                      {/* Company info */}
-                      <div>
-                        <div className="text-lg font-semibold">{preview.companyName}</div>
-                        {preview.description && (
-                          <p className="mt-1 text-sm text-muted-foreground line-clamp-2">
-                            {preview.description}
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Stats grid */}
-                      <div className="grid grid-cols-2 gap-3 text-sm">
-                        <div className="flex items-center gap-2 rounded-md border bg-background p-2.5">
-                          <FileText className="h-4 w-4 text-primary" />
-                          <div>
-                            <div className="font-medium">{preview.estimatedPages}</div>
-                            <div className="text-xs text-muted-foreground">{t('estimatedPages')}</div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 rounded-md border bg-background p-2.5">
-                          <Clock className="h-4 w-4 text-primary" />
-                          <div>
-                            <div className="font-medium">~{preview.estimatedMinutes} {t('minutes')}</div>
-                            <div className="text-xs text-muted-foreground">{t('estimatedTime')}</div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Badges */}
-                      <div className="flex flex-wrap gap-2">
-                        <Badge variant={preview.hasSitemap ? 'success' : 'secondary'}>
-                          {preview.hasSitemap ? (
-                            <CheckCircle2 className="mr-1 h-3 w-3" />
-                          ) : (
-                            <XCircle className="mr-1 h-3 w-3" />
-                          )}
-                          {t('hasSitemap')}
-                        </Badge>
-                        {preview.isSpa && (
-                          <Badge variant="warning">
-                            <Monitor className="mr-1 h-3 w-3" />
-                            {t('isSpa')}
-                          </Badge>
-                        )}
-                        <Badge variant={preview.crawlAllowed ? 'success' : 'destructive'}>
-                          {preview.crawlAllowed ? (
-                            <CheckCircle2 className="mr-1 h-3 w-3" />
-                          ) : (
-                            <AlertTriangle className="mr-1 h-3 w-3" />
-                          )}
-                          {t('crawlAllowed')}
-                        </Badge>
-                      </div>
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
+      {step === 'source' ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('steps.source')}</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="url">{t('fields.url')}</Label>
+              <Input
+                id="url"
+                name="url"
+                placeholder="https://example.com"
+                value={url}
+                onChange={(event) => setUrl(event.target.value)}
+              />
+            </div>
             <div className="space-y-2">
-              <Label htmlFor="name">{t('nameLabel')}</Label>
+              <Label htmlFor="name">{t('fields.name')}</Label>
               <Input
                 id="name"
+                name="name"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={t('namePlaceholder')}
-                disabled={loading}
+                onChange={(event) => setName(event.target.value)}
               />
             </div>
-
             <div className="space-y-2">
-              <Label htmlFor="description">{t('descriptionLabel')}</Label>
+              <Label htmlFor="description">{t('fields.description')}</Label>
               <Input
                 id="description"
+                name="description"
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder={t('descriptionPlaceholder')}
-                disabled={loading}
+                onChange={(event) => setDescription(event.target.value)}
               />
             </div>
-
-            {/* Advanced Options Collapsible */}
-            <div className="rounded-xl border border-dashed border-border">
-              <button
-                type="button"
-                onClick={() => setShowAdvanced(!showAdvanced)}
-                className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <div className="flex items-center gap-2">
-                  <Settings2 className="h-4 w-4" />
-                  {showAdvanced ? t('hideAdvanced') : t('showAdvanced')}
-                </div>
-                <ChevronDown className={`h-4 w-4 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
-              </button>
-
-              {showAdvanced && (
-                <div className="border-t px-4 pb-4 space-y-4 pt-4">
-                  {/* Max Depth Slider */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label>{t('maxDepth')}</Label>
-                      <span className="text-sm font-medium text-primary">{maxDepth}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min={1}
-                      max={10}
-                      value={maxDepth}
-                      onChange={(e) => setMaxDepth(parseInt(e.target.value))}
-                      className="w-full h-2 bg-muted rounded-full appearance-none cursor-pointer accent-primary"
-                    />
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>1 (homepage only)</span>
-                      <span>10 (deep crawl)</span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">{t('maxDepthHint')}</p>
-                  </div>
-
-                  {/* Max Pages Slider */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label>{t('maxPages')}</Label>
-                      <span className="text-sm font-medium text-primary">{maxPages.toLocaleString()}</span>
-                    </div>
-                    <input
-                      type="range"
-                      min={50}
-                      max={5000}
-                      step={50}
-                      value={maxPages}
-                      onChange={(e) => setMaxPages(parseInt(e.target.value))}
-                      className="w-full h-2 bg-muted rounded-full appearance-none cursor-pointer accent-primary"
-                    />
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>50</span>
-                      <span>5,000</span>
-                    </div>
-                  </div>
-
-                  {/* Include Paths */}
-                  <div className="space-y-2">
-                    <Label>{t('includePaths')}</Label>
-                    <Input
-                      value={includePaths}
-                      onChange={(e) => setIncludePaths(e.target.value)}
-                      placeholder={t('includePathsPlaceholder')}
-                      disabled={loading}
-                    />
-                    <p className="text-xs text-muted-foreground">{t('includePathsHint')}</p>
-                  </div>
-
-                  {/* Exclude Paths */}
-                  <div className="space-y-2">
-                    <Label>{t('excludePaths')}</Label>
-                    <Input
-                      value={excludePaths}
-                      onChange={(e) => setExcludePaths(e.target.value)}
-                      placeholder={t('excludePathsPlaceholder')}
-                      disabled={loading}
-                    />
-                    <p className="text-xs text-muted-foreground">{t('excludePathsHint')}</p>
-                  </div>
-                </div>
-              )}
+            <div className="space-y-2">
+              <Label htmlFor="maxDepth">{t('fields.maxDepth')}</Label>
+              <Input
+                id="maxDepth"
+                name="maxDepth"
+                type="number"
+                min={1}
+                max={10}
+                value={maxDepth}
+                onChange={(event) => setMaxDepth(Number(event.target.value) || 1)}
+              />
             </div>
-
-            <Button type="submit" className="w-full" disabled={loading || !url}>
-              {loading ? (
-                <>
-                  <Spinner className="mr-2" />
-                  {t('crawling')}
-                </>
-              ) : (
-                t('crawlButton')
-              )}
-            </Button>
+            <div className="space-y-2">
+              <Label htmlFor="maxPages">{t('fields.maxPages')}</Label>
+              <Input
+                id="maxPages"
+                name="maxPages"
+                type="number"
+                min={50}
+                max={5000}
+                step={50}
+                value={maxPages}
+                onChange={(event) => setMaxPages(Number(event.target.value) || 50)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="include">{t('fields.includePaths')}</Label>
+              <Input
+                id="include"
+                name="includePaths"
+                placeholder="/docs/*, /blog/*"
+                value={includePaths}
+                onChange={(event) => setIncludePaths(event.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="exclude">{t('fields.excludePaths')}</Label>
+              <Input
+                id="exclude"
+                name="excludePaths"
+                placeholder="/admin/*, /login"
+                value={excludePaths}
+                onChange={(event) => setExcludePaths(event.target.value)}
+              />
+            </div>
+            <div className="md:col-span-2">
+              <Button onClick={runPreview} disabled={isPending || !url.trim()}>
+                {isPending ? t('actions.loading') : t('actions.preview')}
+              </Button>
+            </div>
           </CardContent>
-        </form>
-      </Card>
+        </Card>
+      ) : null}
+
+      {step === 'preflight' && preview ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('steps.preflight')}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-4">
+              <Stat title={t('preflight.urls')} value={formatNumber(preview.totalUrls)} />
+              <Stat title={t('preflight.hostname')} value={preview.hostname} />
+              <Stat title={t('preflight.rendering')} value={preview.likelySpa ? 'SPA' : 'HTML'} />
+              <Stat title={t('preflight.scope')} value={preview.urls.length ? t('preflight.liveLinks') : '0'} />
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant={preview.hasSitemap ? 'success' : 'outline'}>
+                {preview.hasSitemap ? t('preflight.sitemapFound') : t('preflight.noSitemap')}
+              </Badge>
+              <Badge variant={preview.crawlAllowed ? 'success' : 'destructive'}>
+                {preview.crawlAllowed ? t('preflight.crawlAllowed') : t('preflight.crawlBlocked')}
+              </Badge>
+            </div>
+            <div className="max-h-56 space-y-2 overflow-auto pr-1">
+              {preview.urls.slice(0, 10).map((entry) => (
+                <div
+                  key={entry}
+                  className="rounded-2xl border border-border/70 px-3 py-2 text-xs text-muted-foreground"
+                >
+                  {entry}
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={() => setStep('source')}>
+                {t('actions.back')}
+              </Button>
+              <Button onClick={() => setStep('mode')}>{t('actions.next')}</Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {step === 'mode' ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('steps.mode')}</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-3">
+            {(['agent', 'data', 'hybrid'] as WorkspaceMode[]).map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setMode(option)}
+                className={`rounded-[1.5rem] border p-5 text-left transition-colors ${
+                  mode === option
+                    ? 'border-primary bg-secondary text-secondary-foreground'
+                    : 'border-border/70 bg-white/70 text-foreground hover:bg-white'
+                }`}
+              >
+                <p className="text-lg font-semibold">{t(`modes.${option}.title`)}</p>
+                <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                  {t(`modes.${option}.description`)}
+                </p>
+              </button>
+            ))}
+            <div className="md:col-span-3 flex gap-3">
+              <Button variant="outline" onClick={() => setStep('preflight')}>
+                {t('actions.back')}
+              </Button>
+              <Button onClick={() => setStep('launch')}>{t('actions.next')}</Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {step === 'launch' ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('steps.launch')}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <Summary label={t('fields.url')} value={url} />
+              <Summary label={t('fields.name')} value={name || preview?.hostname || 'Agent'} />
+              <Summary label={t('fields.maxDepth')} value={String(maxDepth)} />
+              <Summary label={t('fields.maxPages')} value={formatNumber(maxPages)} />
+              <Summary label={t('fields.mode')} value={t(`modes.${mode}.title`)} />
+            </div>
+            <div className="flex gap-3">
+              <Button variant="outline" onClick={() => setStep('mode')}>
+                {t('actions.back')}
+              </Button>
+              <Button onClick={launchWorkflow} disabled={isPending}>
+                {isPending ? t('actions.loading') : t('actions.launch')}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
+    </div>
+  );
+}
+
+function Stat({ title, value }: { title: string; value: string }) {
+  return (
+    <div className="rounded-[1.3rem] border border-border/70 bg-white/72 p-4">
+      <p className="text-sm text-muted-foreground">{title}</p>
+      <div className="mt-2 text-2xl font-semibold">{value}</div>
+    </div>
+  );
+}
+
+function Summary({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[1.3rem] border border-border/70 bg-white/72 p-4">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <div className="mt-2 text-sm font-medium leading-6">{value}</div>
     </div>
   );
 }

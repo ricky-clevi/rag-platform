@@ -3,204 +3,306 @@ import { Link } from '@/i18n/navigation';
 import { Header } from '@/components/layout/header';
 import { Footer } from '@/components/layout/footer';
 import { Button } from '@/components/ui/button';
-import { Bot, Globe, MessageSquare, Share2, Zap, Shield, Brain, ArrowRight, CheckCircle, Users, Star } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import {
+  ArrowRight,
+  Bot,
+  Database,
+  Activity,
+  Sparkles,
+  Radar,
+  Search,
+  ShieldCheck,
+  Layers3,
+  Globe,
+} from 'lucide-react';
 
 export default function LandingPage() {
   const t = useTranslations('landing');
-  const nav = useTranslations('nav');
+  const workflow = t.raw('workflow.steps') as Array<{ title: string; description: string }>;
+  const capabilityCards = t.raw('capabilities.cards') as Array<{
+    title: string;
+    description: string;
+  }>;
+  const examples = t.raw('examples.cards') as Array<{
+    title: string;
+    description: string;
+    badge: string;
+  }>;
+  const pricing = t.raw('pricing.tiers') as Array<{
+    name: string;
+    price: string;
+    description: string;
+    points: string[];
+    featured?: boolean;
+  }>;
+
+  const workspaceIcons = [Bot, Database, Activity, Sparkles];
+  const capabilityIcons = [Radar, Search, ShieldCheck, Layers3];
+  const exampleIcons = [Globe, Database, Activity];
 
   return (
     <>
       <Header />
       <main className="flex-1">
-        {/* HERO: gradient mesh background, large headline, animated badge */}
-        <section className="relative overflow-hidden gradient-mesh border-b">
-          {/* Background decorative orbs */}
-          <div className="pointer-events-none absolute inset-0 overflow-hidden">
-            <div className="absolute -top-40 -right-32 h-96 w-96 rounded-full bg-primary/10 blur-3xl" />
-            <div className="absolute -bottom-40 -left-32 h-96 w-96 rounded-full bg-violet-500/10 blur-3xl" />
-          </div>
-
-          <div className="container relative mx-auto px-4 py-28 md:py-40">
-            <div className="mx-auto max-w-4xl text-center">
-              {/* Badge */}
-              <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/5 px-4 py-2 text-sm font-medium text-primary">
-                <Zap className="h-4 w-4" />
-                <span>Powered by Gemini AI &middot; Hybrid RAG Search</span>
-              </div>
-
-              {/* Main headline */}
-              <h1 className="mb-6 text-5xl font-extrabold tracking-tight md:text-7xl">
-                <span>{t('hero.title').split(' ').slice(0, 4).join(' ')}</span>
-                <br />
-                <span className="gradient-text">{t('hero.title').split(' ').slice(4).join(' ')}</span>
-              </h1>
-
-              <p className="mx-auto mb-10 max-w-2xl text-lg text-muted-foreground md:text-xl leading-relaxed">
-                {t('hero.subtitle')}
-              </p>
-
-              {/* CTAs */}
-              <div className="flex flex-col items-center gap-4 sm:flex-row sm:justify-center">
-                <Button size="lg" className="h-12 px-8 text-base shadow-lg shadow-primary/25" asChild>
-                  <Link href="/signup">
-                    {t('hero.cta')}
-                    <ArrowRight className="ml-2 h-4 w-4" />
-                  </Link>
-                </Button>
-                <Button variant="outline" size="lg" className="h-12 px-8 text-base" asChild>
-                  <Link href="#features">{t('hero.ctaSecondary')}</Link>
-                </Button>
-              </div>
-
-              {/* Social proof */}
-              <div className="mt-10 flex flex-col items-center gap-6 sm:flex-row sm:justify-center">
-                <div className="flex -space-x-2">
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <div key={i} className="h-8 w-8 rounded-full border-2 border-background bg-gradient-to-br from-indigo-400 to-violet-500" />
-                  ))}
+        <section id="product" className="relative overflow-hidden border-b border-border/70">
+          <div className="absolute inset-0 gradient-mesh" />
+          <div className="container relative mx-auto px-4 py-16 md:py-24">
+            <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
+              <div className="space-y-7">
+                <Badge variant="outline" className="bg-white/70">
+                  {t('hero.badge')}
+                </Badge>
+                <div className="space-y-5">
+                  <h1 className="max-w-4xl text-balance text-5xl font-semibold leading-[1.05] tracking-tight md:text-7xl">
+                    {t('hero.title')}
+                  </h1>
+                  <p className="max-w-2xl text-lg leading-8 text-muted-foreground md:text-xl">
+                    {t('hero.subtitle')}
+                  </p>
                 </div>
-                <div className="text-sm text-muted-foreground">
-                  <span className="font-semibold text-foreground">1,000+</span> agents created by developers
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <Button size="lg" asChild>
+                    <Link href="/signup">
+                      {t('hero.cta')}
+                      <ArrowRight className="h-4 w-4" />
+                    </Link>
+                  </Button>
+                  <Button size="lg" variant="outline" asChild>
+                    <a href="#capabilities">{t('hero.secondaryCta')}</a>
+                  </Button>
+                </div>
+                <p className="text-sm leading-7 text-muted-foreground">{t('hero.footnote')}</p>
+
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-[1.5rem] border border-border/70 bg-white/75 p-5">
+                    <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                      {t('hero.metrics.metric1.label')}
+                    </div>
+                    <div className="mt-2 text-3xl font-semibold">{t('hero.metrics.metric1.value')}</div>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">{t('hero.metrics.metric1.copy')}</p>
+                  </div>
+                  <div className="rounded-[1.5rem] border border-border/70 bg-white/75 p-5">
+                    <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                      {t('hero.metrics.metric2.label')}
+                    </div>
+                    <div className="mt-2 text-3xl font-semibold">{t('hero.metrics.metric2.value')}</div>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">{t('hero.metrics.metric2.copy')}</p>
+                  </div>
+                  <div className="rounded-[1.5rem] border border-border/70 bg-white/75 p-5">
+                    <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                      {t('hero.metrics.metric3.label')}
+                    </div>
+                    <div className="mt-2 text-3xl font-semibold">{t('hero.metrics.metric3.value')}</div>
+                    <p className="mt-2 text-sm leading-6 text-muted-foreground">{t('hero.metrics.metric3.copy')}</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="glass-card panel-grid rounded-[2rem] p-5 md:p-7">
+                <div className="grid gap-4">
+                  <div className="rounded-[1.5rem] border border-border/70 bg-white/82 p-5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                          {t('hero.panel.eyebrow')}
+                        </p>
+                        <h2 className="mt-2 text-2xl font-semibold">{t('hero.panel.title')}</h2>
+                      </div>
+                      <div className="rounded-full bg-secondary px-3 py-1 text-sm font-medium text-secondary-foreground">
+                        {t('hero.panel.badge')}
+                      </div>
+                    </div>
+                    <div className="mt-6 grid gap-3">
+                      {(['home', 'data', 'monitor', 'insights'] as const).map((key, index) => {
+                        const Icon = workspaceIcons[index];
+
+                        return (
+                          <div
+                            key={key}
+                            className="flex items-start gap-3 rounded-[1.35rem] border border-border/70 bg-background/85 p-4"
+                          >
+                            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-secondary text-secondary-foreground">
+                              <Icon className="h-5 w-5" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold">{t(`hero.panel.workspaces.${key}.title`)}</p>
+                              <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                                {t(`hero.panel.workspaces.${key}.description`)}
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="rounded-[1.5rem] border border-border/70 bg-[#194a3d] px-5 py-4 text-primary-foreground">
+                    <div className="text-[11px] uppercase tracking-[0.18em] text-primary-foreground/70">
+                      {t('hero.panel.operatorLabel')}
+                    </div>
+                    <p className="mt-2 text-sm leading-7 text-primary-foreground/90">
+                      {t('hero.panel.operatorCopy')}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </section>
 
-        {/* STATS BAR */}
-        <section className="border-b bg-muted/30">
-          <div className="container mx-auto px-4 py-8">
-            <div className="grid grid-cols-3 gap-8 text-center">
-              {[
-                { value: '10K+', label: t('stats.agents') },
-                { value: '500K+', label: t('stats.pages') },
-                { value: '50K+', label: t('stats.chats') },
-              ].map((stat) => (
-                <div key={stat.label}>
-                  <div className="text-2xl font-bold text-primary md:text-3xl">{stat.value}</div>
-                  <div className="text-sm text-muted-foreground">{stat.label}</div>
-                </div>
-              ))}
+        <section className="border-b border-border/70 bg-white/45">
+          <div className="container mx-auto px-4 py-16 md:py-20">
+            <div className="grid gap-10 lg:grid-cols-[0.92fr_1.08fr]">
+              <div className="space-y-4">
+                <span className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
+                  {t('product.eyebrow')}
+                </span>
+                <h2 className="text-balance text-3xl font-semibold md:text-5xl">{t('product.title')}</h2>
+                <p className="max-w-xl text-base leading-7 text-muted-foreground md:text-lg">
+                  {t('product.description')}
+                </p>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {workflow.map((step, index) => (
+                  <article key={step.title} className="rounded-[1.6rem] border border-border/70 bg-white/75 p-5 shadow-[0_16px_38px_rgba(31,37,32,0.05)]">
+                    <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
+                      {t('workflow.stepLabel', { value: String(index + 1).padStart(2, '0') })}
+                    </div>
+                    <h3 className="mt-4 text-xl font-semibold">{step.title}</h3>
+                    <p className="mt-3 text-sm leading-7 text-muted-foreground">{step.description}</p>
+                  </article>
+                ))}
+              </div>
             </div>
           </div>
         </section>
 
-        {/* HOW IT WORKS */}
-        <section id="features" className="container mx-auto px-4 py-24">
-          <div className="mb-16 text-center">
-            <h2 className="mb-4 text-3xl font-bold md:text-4xl">{t('features.title')}</h2>
-            <p className="mx-auto max-w-xl text-muted-foreground">
-              From URL to intelligent AI agent in minutes.
+        <section id="capabilities" className="container mx-auto px-4 py-16 md:py-20">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div className="space-y-4">
+              <span className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
+                {t('capabilities.eyebrow')}
+              </span>
+              <h2 className="text-balance text-3xl font-semibold md:text-5xl">{t('capabilities.title')}</h2>
+            </div>
+            <p className="max-w-2xl text-base leading-7 text-muted-foreground md:text-lg">
+              {t('capabilities.subtitle')}
             </p>
           </div>
 
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            {[
-              { icon: Globe, title: t('features.crawl.title'), desc: t('features.crawl.description'), color: 'text-blue-500', bg: 'bg-blue-500/10' },
-              { icon: Brain, title: t('features.build.title'), desc: t('features.build.description'), color: 'text-violet-500', bg: 'bg-violet-500/10' },
-              { icon: MessageSquare, title: t('features.chat.title'), desc: t('features.chat.description'), color: 'text-primary', bg: 'bg-primary/10' },
-              { icon: Share2, title: t('features.share.title'), desc: t('features.share.description'), color: 'text-emerald-500', bg: 'bg-emerald-500/10' },
-            ].map((feature, i) => (
-              <div key={i} className="group relative rounded-2xl border bg-card p-6 transition-all duration-300 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-1">
-                <div className={`mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl ${feature.bg}`}>
-                  <feature.icon className={`h-6 w-6 ${feature.color}`} />
-                </div>
-                <div className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Step {i + 1}
-                </div>
-                <h3 className="mb-2 text-lg font-semibold">{feature.title}</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">{feature.desc}</p>
-              </div>
+          <div className="mt-10 grid gap-4 lg:grid-cols-4">
+            {capabilityCards.map((card, index) => {
+              const Icon = capabilityIcons[index];
+
+              return (
+                <article key={card.title} className="rounded-[1.7rem] border border-border/70 bg-white/75 p-6 shadow-[0_16px_36px_rgba(31,37,32,0.05)]">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary text-secondary-foreground">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <h3 className="mt-6 text-xl font-semibold">{card.title}</h3>
+                  <p className="mt-3 text-sm leading-7 text-muted-foreground">{card.description}</p>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+
+        <section id="examples" className="border-y border-border/70 bg-white/45">
+          <div className="container mx-auto px-4 py-16 md:py-20">
+            <div className="space-y-4">
+              <span className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
+                {t('examples.eyebrow')}
+              </span>
+              <h2 className="text-balance text-3xl font-semibold md:text-5xl">{t('examples.title')}</h2>
+              <p className="max-w-2xl text-base leading-7 text-muted-foreground md:text-lg">
+                {t('examples.subtitle')}
+              </p>
+            </div>
+
+            <div className="mt-10 grid gap-4 lg:grid-cols-3">
+              {examples.map((card, index) => {
+                const Icon = exampleIcons[index];
+
+                return (
+                  <article key={card.title} className="rounded-[1.7rem] border border-border/70 bg-white/75 p-6 shadow-[0_16px_36px_rgba(31,37,32,0.05)]">
+                    <Badge variant="outline" className="bg-white/80">
+                      {card.badge}
+                    </Badge>
+                    <div className="mt-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary text-secondary-foreground">
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <h3 className="mt-6 text-xl font-semibold">{card.title}</h3>
+                    <p className="mt-3 text-sm leading-7 text-muted-foreground">{card.description}</p>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+
+        <section id="pricing" className="container mx-auto px-4 py-16 md:py-20">
+          <div className="space-y-4 text-center">
+            <span className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
+              {t('pricing.eyebrow')}
+            </span>
+            <h2 className="text-balance text-3xl font-semibold md:text-5xl">{t('pricing.title')}</h2>
+            <p className="mx-auto max-w-2xl text-base leading-7 text-muted-foreground md:text-lg">
+              {t('pricing.subtitle')}
+            </p>
+          </div>
+
+          <div className="mt-10 grid gap-4 lg:grid-cols-3">
+            {pricing.map((tier) => (
+              <article
+                key={tier.name}
+                className={`rounded-[1.8rem] border p-6 shadow-[0_18px_40px_rgba(31,37,32,0.05)] ${
+                  tier.featured
+                    ? 'border-primary/30 bg-[#194a3d] text-primary-foreground'
+                    : 'border-border/70 bg-white/75 text-foreground'
+                }`}
+              >
+                <div className="text-[11px] uppercase tracking-[0.22em] opacity-70">{tier.name}</div>
+                <div className="mt-4 text-4xl font-semibold">{tier.price}</div>
+                <p className={`mt-3 text-sm leading-7 ${tier.featured ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
+                  {tier.description}
+                </p>
+                <ul className="mt-6 space-y-3 text-sm leading-7">
+                  {tier.points.map((point) => (
+                    <li key={point} className="flex items-start gap-3">
+                      <span className={`mt-2 h-1.5 w-1.5 rounded-full ${tier.featured ? 'bg-primary-foreground' : 'bg-primary'}`} />
+                      <span>{point}</span>
+                    </li>
+                  ))}
+                </ul>
+              </article>
             ))}
           </div>
         </section>
 
-        {/* FEATURES LIST */}
-        <section className="border-t bg-muted/20">
-          <div className="container mx-auto px-4 py-24">
-            <div className="grid gap-16 md:grid-cols-2 md:items-center">
-              <div>
-                <h2 className="mb-6 text-3xl font-bold md:text-4xl">
-                  Everything you need to build{' '}
-                  <span className="gradient-text">intelligent agents</span>
-                </h2>
-                <div className="space-y-4">
-                  {[
-                    'Deep website crawling with SPA support',
-                    'Hybrid semantic + keyword search (RAG)',
-                    'Real-time streaming AI responses',
-                    'Source citations with page references',
-                    'Share links with expiry & passcode protection',
-                    'Multi-language support (EN / KO)',
-                  ].map((feature) => (
-                    <div key={feature} className="flex items-start gap-3">
-                      <CheckCircle className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
-                      <span className="text-muted-foreground">{feature}</span>
-                    </div>
-                  ))}
-                </div>
+        <section className="border-t border-border/70 bg-[#194a3d] text-primary-foreground">
+          <div className="container mx-auto px-4 py-16 md:py-20">
+            <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
+              <div className="max-w-2xl space-y-4">
+                <span className="text-[11px] uppercase tracking-[0.22em] text-primary-foreground/70">
+                  {t('cta.eyebrow')}
+                </span>
+                <h2 className="text-balance text-3xl font-semibold md:text-5xl">{t('cta.title')}</h2>
+                <p className="text-base leading-7 text-primary-foreground/80 md:text-lg">
+                  {t('cta.subtitle')}
+                </p>
               </div>
-
-              {/* Mock UI preview */}
-              <div className="relative rounded-2xl border bg-card p-1 shadow-2xl shadow-primary/10">
-                <div className="rounded-xl bg-muted/50 p-4">
-                  <div className="mb-4 flex items-center gap-2 border-b pb-3">
-                    <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center">
-                      <Bot className="h-4 w-4 text-primary" />
-                    </div>
-                    <div>
-                      <div className="text-sm font-semibold">AgentForge AI</div>
-                      <div className="text-xs text-muted-foreground">powered by Gemini</div>
-                    </div>
-                  </div>
-                  <div className="space-y-3">
-                    <div className="flex justify-end">
-                      <div className="rounded-2xl rounded-br-md bg-primary px-4 py-2 text-sm text-primary-foreground max-w-[80%]">
-                        What are your pricing plans?
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <div className="h-7 w-7 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
-                        <Bot className="h-3.5 w-3.5 text-primary" />
-                      </div>
-                      <div className="rounded-2xl rounded-bl-md bg-background border px-4 py-2 text-sm max-w-[80%]">
-                        We offer three plans: <strong>Starter</strong> ($0/mo), <strong>Pro</strong> ($29/mo), and <strong>Enterprise</strong> (custom). The Pro plan includes unlimited agents and...
-                      </div>
-                    </div>
-                    <div className="ml-9 flex gap-2">
-                      <div className="rounded-lg border bg-primary/5 px-3 py-1.5 text-xs text-primary cursor-pointer hover:bg-primary/10">
-                        Pricing page
-                      </div>
-                      <div className="rounded-lg border bg-primary/5 px-3 py-1.5 text-xs text-primary cursor-pointer hover:bg-primary/10">
-                        Feature comparison
-                      </div>
-                    </div>
-                  </div>
-                </div>
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <Button size="lg" variant="secondary" asChild>
+                  <Link href="/signup">
+                    {t('cta.primary')}
+                    <ArrowRight className="h-4 w-4" />
+                  </Link>
+                </Button>
+                <Button size="lg" variant="outline" className="border-white/20 bg-transparent text-white hover:bg-white/10 hover:text-white" asChild>
+                  <Link href="/login">{t('cta.secondary')}</Link>
+                </Button>
               </div>
             </div>
-          </div>
-        </section>
-
-        {/* CTA */}
-        <section className="relative overflow-hidden border-t">
-          <div className="pointer-events-none absolute inset-0">
-            <div className="absolute inset-0 gradient-mesh opacity-50" />
-          </div>
-          <div className="container relative mx-auto px-4 py-24 text-center">
-            <h2 className="mb-4 text-3xl font-bold md:text-4xl">
-              Ready to build your <span className="gradient-text">first agent?</span>
-            </h2>
-            <p className="mb-8 text-muted-foreground">
-              Enter any website URL and have an AI agent ready in minutes.
-            </p>
-            <Button size="lg" className="h-12 px-10 text-base shadow-lg shadow-primary/25" asChild>
-              <Link href="/signup">
-                {nav('signUp')} &mdash; It&apos;s free
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
           </div>
         </section>
       </main>

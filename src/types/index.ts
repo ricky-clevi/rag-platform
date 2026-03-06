@@ -11,6 +11,14 @@ export interface Profile {
   updated_at: string;
 }
 
+export type WorkspaceMode = 'agent' | 'data' | 'hybrid';
+
+export interface AuthIntent {
+  next: string;
+  intent: string;
+  contextLabel?: string;
+}
+
 export interface Organization {
   id: string;
   name: string;
@@ -36,6 +44,14 @@ export interface Membership {
 
 export type AgentStatus = 'draft' | 'pending' | 'crawling' | 'processing' | 'ready' | 'error';
 export type AgentVisibility = 'public' | 'private' | 'passcode';
+export type JobStage =
+  | 'preflight'
+  | 'queued'
+  | 'discovering'
+  | 'fetching'
+  | 'embedding'
+  | 'ready'
+  | 'failed';
 
 export interface Agent {
   id: string;
@@ -88,6 +104,13 @@ export interface CrawlStats {
   started_at?: string;
   completed_at?: string;
   error_message?: string;
+  discovered_urls?: number;
+  pages_per_minute?: number;
+  browser_render_share?: number;
+  embed_queue_depth?: number;
+  changed_pages?: number;
+  eta_seconds?: number;
+  current_stage?: JobStage;
 }
 
 // =============================================
@@ -128,6 +151,23 @@ export interface CrawlJob {
   created_at: string;
 }
 
+export interface CrawlJobMetrics {
+  discovered_urls: number;
+  crawled_urls: number;
+  skipped_urls?: number;
+  failed_urls: number;
+  total_chunks?: number;
+  pages_per_minute: number;
+  browser_render_share: number;
+  embed_queue_depth: number;
+  changed_page_count?: number;
+  changed_pages?: number;
+  eta_minutes?: number | null;
+  eta_seconds: number | null;
+  failure_reason: string | null;
+  current_stage: JobStage;
+}
+
 export type PageCrawlStatus = 'pending' | 'crawled' | 'skipped' | 'blocked' | 'failed';
 
 export interface Page {
@@ -144,6 +184,7 @@ export interface Page {
   content_hash: string | null;
   robots_allowed: boolean;
   clean_markdown: string | null;
+  previous_markdown?: string | null;
   raw_html_length: number;
   page_type: 'html' | 'pdf' | 'other';
   crawl_status: PageCrawlStatus;

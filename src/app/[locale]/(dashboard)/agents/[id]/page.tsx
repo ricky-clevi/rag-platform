@@ -1,712 +1,809 @@
 'use client';
 
-import { useEffect, useState, use } from 'react';
+import type { ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FullPageLoader, Spinner } from '@/components/common/loading-states';
 import { AgentStatusBadge } from '@/components/agent/agent-status';
-import * as Tabs from '@radix-ui/react-tabs';
+import { formatDate, formatNumber } from '@/lib/utils/format';
 import {
-  Globe, MessageSquare, FileText, Share2, Copy, Check, RefreshCw,
-  Settings, Save, BarChart3, Clock, AlertCircle, Sparkles, Eye, EyeOff,
-  Database, Activity, Link2, Shield, Zap, CheckCircle2, XCircle,
+  Activity,
+  Bot,
+  Copy,
+  ExternalLink,
+  Gauge,
+  Globe,
+  Link2,
+  Radar,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  Sparkles,
 } from 'lucide-react';
-import { cn } from '@/lib/utils/cn';
-import type { Agent, AgentSettings } from '@/types';
+import type { Agent, AgentSettings, ShareLink } from '@/types';
 
-// ─── Helper components ────────────────────────────────────────────────────────
-
-function AgentFavicon({ url, name }: { url: string; name: string }) {
-  const [failed, setFailed] = useState(false);
-  let domain = '';
-  try {
-    domain = new URL(url).hostname;
-  } catch {}
-
-  if (failed || !domain) {
-    return (
-      <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-violet-500 flex items-center justify-center text-white font-bold text-lg shrink-0">
-        {name[0]?.toUpperCase()}
-      </div>
-    );
-  }
-
-  return (
-    <img
-      src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64`}
-      alt=""
-      width={40}
-      height={40}
-      className="h-10 w-10 rounded-xl object-contain border border-border bg-muted shrink-0"
-      onError={() => setFailed(true)}
-    />
-  );
+interface AgentStats {
+  pages: number;
+  chunks: number;
 }
 
-function StatCard({
-  icon,
-  label,
-  value,
-  color,
-  isStatus,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string | number;
-  color: string;
-  isStatus?: boolean;
-}) {
-  return (
-    <div className="rounded-xl border bg-card p-3">
-      <div className="flex items-center gap-2 mb-1">
-        {icon}
-        <span className="text-xs text-muted-foreground">{label}</span>
-      </div>
-      <div className="text-xl font-bold">{value}</div>
-    </div>
-  );
-}
-
-// ─── Page types ───────────────────────────────────────────────────────────────
-
-interface CrawledPage {
+interface AgentDomainEntry {
   id: string;
-  url: string;
-  title: string | null;
-  crawl_status: string;
-  skip_reason: string | null;
-  page_type: string;
-  last_crawled_at: string | null;
+  domain: string;
+  is_primary: boolean;
 }
 
 interface RecrawlPolicy {
   enabled: boolean;
   frequency_hours: number;
-  last_run_at: string | null;
   next_run_at: string | null;
 }
 
-// ─── Page component ───────────────────────────────────────────────────────────
+interface AnalyticsSummary {
+  summary: {
+    total_conversations: number;
+    total_messages: number;
+    avg_confidence: number;
+    low_confidence_count: number;
+  };
+}
 
-export default function AgentDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = use(params);
-  const t = useTranslations('agents.detail');
-  const tCommon = useTranslations('common');
-
-  const [agent, setAgent] = useState<Agent | null>(null);
-  const [agentSettings, setAgentSettings] = useState<AgentSettings | null>(null);
-  const [stats, setStats] = useState({ pages: 0, chunks: 0 });
+export default function AgentDetailPage() {
+  const params = useParams<{ id: string }>();
+  const t = useTranslations('agents.console');
+  const agentId = params.id;
   const [loading, setLoading] = useState(true);
-  const [copied, setCopied] = useState(false);
-
-  // Settings form state
-  const [editName, setEditName] = useState('');
-  const [editDescription, setEditDescription] = useState('');
-  const [editVisibility, setEditVisibility] = useState<'public' | 'private' | 'passcode'>('public');
-  const [editPasscode, setEditPasscode] = useState('');
-  const [editWelcomeMessage, setEditWelcomeMessage] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-
-  // Crawl report
-  const [crawledPages, setCrawledPages] = useState<CrawledPage[]>([]);
-  const [pageFilter, setPageFilter] = useState<string>('all');
-  const [showPages, setShowPages] = useState(false);
-
-  // Recrawl policy
-  const [recrawlPolicy, setRecrawlPolicy] = useState<RecrawlPolicy | null>(null);
+  const [busy, startTransition] = useTransition();
+  const [agent, setAgent] = useState<Agent | null>(null);
+  const [settings, setSettings] = useState<AgentSettings | null>(null);
+  const [stats, setStats] = useState<AgentStats>({ pages: 0, chunks: 0 });
+  const [domains, setDomains] = useState<AgentDomainEntry[]>([]);
+  const [shareLinks, setShareLinks] = useState<ShareLink[]>([]);
+  const [policy, setPolicy] = useState<RecrawlPolicy | null>(null);
+  const [analytics, setAnalytics] = useState<AnalyticsSummary | null>(null);
+  const [customDomain, setCustomDomain] = useState('');
+  const [customDomainVerified, setCustomDomainVerified] = useState(false);
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [visibility, setVisibility] = useState<'public' | 'private' | 'passcode'>('public');
+  const [passcode, setPasscode] = useState('');
+  const [welcomeMessage, setWelcomeMessage] = useState('');
   const [recrawlEnabled, setRecrawlEnabled] = useState(false);
-  const [recrawlFrequency, setRecrawlFrequency] = useState(168);
+  const [recrawlFrequency, setRecrawlFrequency] = useState('168');
+  const [newDomain, setNewDomain] = useState('');
+  const [shareLabel, setShareLabel] = useState('');
+  const [message, setMessage] = useState('');
 
-  // Auto-generate starters
-  const [generatingStarters, setGeneratingStarters] = useState(false);
+  const shareUrl = useMemo(() => {
+    if (!agent || typeof window === 'undefined') return '';
+    return `${window.location.origin}/agent/${agent.slug}`;
+  }, [agent]);
 
-  // Re-crawl error
-  const [recrawlError, setRecrawlError] = useState('');
+  const loadConsole = useCallback(async () => {
+    const [
+      agentResponse,
+      domainsResponse,
+      shareLinksResponse,
+      policyResponse,
+      customDomainResponse,
+      analyticsResponse,
+    ] = await Promise.all([
+      fetch(`/api/agents/${agentId}`),
+      fetch(`/api/agents/${agentId}/domains`),
+      fetch(`/api/agents/${agentId}/share-links`),
+      fetch(`/api/agents/${agentId}/recrawl-policy`),
+      fetch(`/api/agents/${agentId}/custom-domain`),
+      fetch(`/api/agents/${agentId}/analytics?days=30`),
+    ]);
 
-  // ── Data fetching ────────────────────────────────────────────────────────────
+    const agentPayload = await agentResponse.json();
+    const domainsPayload = await domainsResponse.json();
+    const shareLinksPayload = await shareLinksResponse.json();
+    const policyPayload = await policyResponse.json();
+    const customDomainPayload = await customDomainResponse.json();
+    const analyticsPayload = await analyticsResponse.json();
 
-  useEffect(() => {
-    async function fetchAgent() {
-      const response = await fetch(`/api/agents/${id}`);
-      if (response.ok) {
-        const data = await response.json();
-        setAgent(data.agent);
-        setAgentSettings(data.settings);
-        setStats(data.stats);
-
-        // Initialise form state
-        setEditName(data.agent.name || '');
-        setEditDescription(data.agent.description || '');
-        setEditVisibility(data.agent.visibility || 'public');
-        setEditWelcomeMessage(data.settings?.welcome_message || '');
-      }
+    if (!agentResponse.ok) {
       setLoading(false);
+      return;
     }
-    fetchAgent();
-  }, [id]);
 
-  // Fetch crawled pages
+    setAgent(agentPayload.agent);
+    setSettings(agentPayload.settings);
+    setStats(agentPayload.stats);
+    setDomains(domainsPayload.domains || []);
+    setShareLinks(shareLinksPayload.share_links || []);
+    setPolicy(policyPayload.policy || null);
+    setAnalytics(analyticsResponse.ok ? analyticsPayload : null);
+    setCustomDomain(customDomainPayload.custom_domain || '');
+    setCustomDomainVerified(Boolean(customDomainPayload.verified));
+    setName(agentPayload.agent.name || '');
+    setDescription(agentPayload.agent.description || '');
+    setVisibility(agentPayload.agent.visibility || 'public');
+    setWelcomeMessage(agentPayload.settings?.welcome_message || '');
+    setRecrawlEnabled(Boolean(policyPayload.policy?.enabled));
+    setRecrawlFrequency(String(policyPayload.policy?.frequency_hours || 168));
+    setLoading(false);
+  }, [agentId]);
+
   useEffect(() => {
-    if (!showPages) return;
-    const statusParam = pageFilter !== 'all' ? `&status=${pageFilter}` : '';
-    fetch(`/api/agents/${id}/pages?limit=100${statusParam}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (d) setCrawledPages(d.pages || []);
+    const timer = window.setTimeout(() => {
+      void loadConsole();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [loadConsole]);
+
+  const setFeedback = (value: string) => {
+    setMessage(value);
+    window.setTimeout(() => {
+      setMessage((current) => (current === value ? '' : current));
+    }, 2500);
+  };
+
+  const runTask = (task: () => Promise<void>) => {
+    startTransition(() => {
+      void task().catch(() => {
+        setFeedback(t('errors.generic'));
       });
-  }, [id, showPages, pageFilter]);
-
-  // Fetch recrawl policy
-  useEffect(() => {
-    fetch(`/api/agents/${id}/recrawl-policy`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        if (d?.policy) {
-          setRecrawlPolicy(d.policy);
-          setRecrawlEnabled(d.policy.enabled);
-          setRecrawlFrequency(d.policy.frequency_hours);
-        }
-      });
-  }, [id]);
-
-  // ── Handlers ─────────────────────────────────────────────────────────────────
-
-  const handleSaveRecrawlPolicy = async () => {
-    const response = await fetch(`/api/agents/${id}/recrawl-policy`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled: recrawlEnabled, frequency_hours: recrawlFrequency }),
     });
-    if (response.ok) {
-      const data = await response.json();
-      setRecrawlPolicy(data.policy);
-    }
   };
 
-  const handleGenerateStarters = async () => {
-    setGeneratingStarters(true);
-    const response = await fetch(`/api/agents/${id}/generate-starters`, { method: 'POST' });
-    if (response.ok) {
-      const data = await response.json();
-      setAgentSettings((prev) =>
-        prev ? { ...prev, starter_questions: data.starter_questions } : prev
+  const saveSettings = () =>
+    runTask(async () => {
+      const response = await fetch(`/api/agents/${agentId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          description,
+          visibility,
+          passcode: visibility === 'passcode' ? passcode : undefined,
+          settings: {
+            welcome_message: welcomeMessage,
+          },
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        setFeedback(payload.error || t('errors.generic'));
+        return;
+      }
+
+      setAgent(payload.agent);
+      setSettings(payload.settings);
+      setPasscode('');
+      setFeedback(t('messages.saved'));
+    });
+
+  const generateStarters = () =>
+    runTask(async () => {
+      const response = await fetch(`/api/agents/${agentId}/generate-starters`, {
+        method: 'POST',
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        setFeedback(payload.error || t('errors.generic'));
+        return;
+      }
+
+      setSettings((current) =>
+        current
+          ? { ...current, starter_questions: payload.starter_questions || [] }
+          : current
       );
-    }
-    setGeneratingStarters(false);
-  };
+      setFeedback(t('messages.startersGenerated'));
+    });
 
-  const handleCopyLink = async () => {
-    if (!agent) return;
-    try {
-      const shareUrl = `${window.location.origin}/agent/${agent.slug}`;
-      await navigator.clipboard.writeText(shareUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Clipboard API may not be available in insecure contexts
-    }
-  };
+  const saveRecrawlPolicy = () =>
+    runTask(async () => {
+      const response = await fetch(`/api/agents/${agentId}/recrawl-policy`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          enabled: recrawlEnabled,
+          frequency_hours: Number(recrawlFrequency) || 168,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        setFeedback(payload.error || t('errors.generic'));
+        return;
+      }
 
-  const handleReCrawl = async () => {
-    if (!agent) return;
-    setRecrawlError('');
-    try {
+      setPolicy(payload.policy);
+      setFeedback(t('messages.policySaved'));
+    });
+
+  const addDomain = () =>
+    runTask(async () => {
+      const response = await fetch(`/api/agents/${agentId}/domains`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain: newDomain, is_primary: domains.length === 0 }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        setFeedback(payload.error || t('errors.generic'));
+        return;
+      }
+
+      setDomains((current) => [payload.domain, ...current]);
+      setNewDomain('');
+      setFeedback(t('messages.domainAdded'));
+    });
+
+  const saveCustomDomain = () =>
+    runTask(async () => {
+      const response = await fetch(`/api/agents/${agentId}/custom-domain`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ custom_domain: customDomain }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        setFeedback(payload.error || t('errors.generic'));
+        return;
+      }
+
+      setCustomDomain(payload.custom_domain || '');
+      setCustomDomainVerified(Boolean(payload.verified));
+      setFeedback(t('messages.customDomainSaved'));
+    });
+
+  const createShareLink = () =>
+    runTask(async () => {
+      const response = await fetch(`/api/agents/${agentId}/share-links`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: shareLabel || null }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        setFeedback(payload.error || t('errors.generic'));
+        return;
+      }
+
+      setShareLinks((current) => [payload.share_link, ...current]);
+      setShareLabel('');
+      setFeedback(t('messages.shareCreated'));
+    });
+
+  const triggerRecrawl = () =>
+    runTask(async () => {
       const response = await fetch('/api/crawl', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agent_id: agent.id }),
+        body: JSON.stringify({ agent_id: agentId }),
       });
+      const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const data = await response.json().catch(() => ({}));
-        setRecrawlError(data.error || t('recrawlFailed'));
+        setFeedback(payload.error || t('errors.generic'));
         return;
       }
-      window.location.reload();
-    } catch {
-      setRecrawlError(t('recrawlFailed'));
-    }
-  };
 
-  const handleSaveSettings = async () => {
-    if (!agent) return;
-    setSaving(true);
-    setSaveSuccess(false);
-
-    const response = await fetch(`/api/agents/${agent.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: editName,
-        description: editDescription,
-        visibility: editVisibility,
-        passcode:
-          editVisibility === 'passcode' && editPasscode.trim()
-            ? editPasscode.trim()
-            : undefined,
-        settings: {
-          welcome_message: editWelcomeMessage,
-        },
-      }),
+      setFeedback(t('messages.recrawlQueued'));
+      setLoading(true);
+      await loadConsole();
     });
 
-    if (response.ok) {
-      const data = await response.json();
-      setAgent(data.agent);
-      setAgentSettings(data.settings);
-      setEditPasscode('');
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 3000);
+  const copyValue = async (value: string, successMessage: string) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setFeedback(successMessage);
+    } catch {
+      setFeedback(t('errors.copy'));
     }
-
-    setSaving(false);
   };
 
-  // ── Render ───────────────────────────────────────────────────────────────────
+  if (loading) {
+    return <FullPageLoader />;
+  }
 
-  if (loading) return <FullPageLoader />;
-  if (!agent) return <div>{tCommon('noResults')}</div>;
-
-  const shareUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/agent/${agent.slug}`;
+  if (!agent) {
+    return <div className="text-sm text-muted-foreground">{t('errors.notFound')}</div>;
+  }
 
   return (
     <div className="space-y-6">
-      {/* ── Page header ──────────────────────────────────────────────────────── */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <div className="flex items-center gap-3 mb-1">
-            <AgentFavicon url={agent.root_url} name={agent.name} />
+      <section className="surface-card rounded-[2rem] p-8 md:p-10">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="eyebrow">{t('eyebrow')}</span>
+              <AgentStatusBadge status={agent.status} />
+            </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-bold truncate">{agent.name}</h1>
-                <AgentStatusBadge status={agent.status} />
-              </div>
+              <h1 className="text-4xl font-semibold tracking-tight">{agent.name}</h1>
               <a
                 href={agent.root_url}
                 target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-muted-foreground hover:text-primary flex items-center gap-1"
+                rel="noreferrer"
+                className="mt-3 inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
               >
-                <Globe className="h-3 w-3" />
+                <Globe className="h-4 w-4" />
                 {agent.root_url}
               </a>
             </div>
+            <p className="max-w-3xl text-base leading-7 text-muted-foreground">
+              {agent.description || t('fallbackDescription')}
+            </p>
           </div>
-        </div>
 
-        <div className="flex flex-col gap-2 shrink-0">
-          <div className="flex gap-2">
-            {agent.status === 'ready' && (
+          <div className="flex flex-col gap-3 sm:flex-row lg:flex-col">
+            {agent.status === 'ready' ? (
               <Button asChild>
                 <Link href={`/agent/${agent.slug}`}>
-                  <MessageSquare className="mr-2 h-4 w-4" />
-                  {t('chat')}
+                  <ExternalLink className="h-4 w-4" />
+                  {t('actions.openPublic')}
                 </Link>
               </Button>
-            )}
-            <Button variant="outline" onClick={handleReCrawl}>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              {t('rebuild')}
+            ) : null}
+            <Button variant="outline" onClick={triggerRecrawl} disabled={busy}>
+              {busy ? <Spinner /> : <RefreshCw className="h-4 w-4" />}
+              {t('actions.recrawl')}
             </Button>
           </div>
-          {recrawlError && (
-            <p className="text-sm text-destructive flex items-center gap-1">
-              <AlertCircle className="h-4 w-4" />
-              {recrawlError}
-            </p>
-          )}
         </div>
-      </div>
 
-      {/* ── Stats row ────────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard
-          icon={<FileText className="h-4 w-4 text-blue-500" />}
-          label={t('pages')}
-          value={stats.pages}
-          color="blue"
-        />
-        <StatCard
-          icon={<Database className="h-4 w-4 text-violet-500" />}
-          label={t('chunks')}
-          value={stats.chunks}
-          color="violet"
-        />
-        <StatCard
-          icon={<Activity className="h-4 w-4 text-emerald-500" />}
-          label={t('status')}
-          value={agent.status}
-          color="emerald"
-          isStatus
-        />
-        <StatCard
-          icon={<Clock className="h-4 w-4 text-amber-500" />}
-          label="Last Crawl"
-          value={
-            agent.crawl_stats?.completed_at
-              ? new Date(agent.crawl_stats.completed_at).toLocaleDateString()
-              : '—'
-          }
-          color="amber"
-        />
-      </div>
-
-      {/* ── Tabs ─────────────────────────────────────────────────────────────── */}
-      <Tabs.Root defaultValue="overview" className="space-y-4">
-        <Tabs.List className="flex h-10 items-center gap-1 rounded-xl bg-muted p-1 w-fit">
-          {[
-            { value: 'overview', label: 'Overview', icon: BarChart3 },
-            { value: 'settings', label: 'Settings', icon: Settings },
-            { value: 'share', label: 'Share', icon: Share2 },
-            { value: 'knowledge', label: 'Knowledge', icon: Database },
-          ].map((tab) => (
-            <Tabs.Trigger
-              key={tab.value}
-              value={tab.value}
-              className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium text-muted-foreground ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm hover:text-foreground"
-            >
-              <tab.icon className="h-3.5 w-3.5" />
-              {tab.label}
-            </Tabs.Trigger>
-          ))}
-        </Tabs.List>
-
-        {/* ── OVERVIEW TAB ───────────────────────────────────────────────────── */}
-        <Tabs.Content value="overview" className="space-y-4">
-          {/* Crawl Report */}
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <FileText className="h-4 w-4" />
-                  {t('crawlReport')}
-                </CardTitle>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowPages(!showPages)}
-                  aria-label={t('toggleCrawlReport')}
-                  aria-expanded={showPages}
-                >
-                  {showPages ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </Button>
-              </div>
-            </CardHeader>
-            {showPages && (
-              <CardContent className="space-y-3">
-                {/* Filter buttons */}
-                <div className="flex gap-1.5 flex-wrap">
-                  {['all', 'crawled', 'skipped', 'blocked', 'failed'].map((status) => (
-                    <button
-                      key={status}
-                      onClick={() => setPageFilter(status)}
-                      className={cn(
-                        'rounded-lg px-3 py-1 text-xs font-medium transition-colors',
-                        pageFilter === status
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                      )}
-                    >
-                      {status.charAt(0).toUpperCase() + status.slice(1)}
-                    </button>
-                  ))}
-                </div>
-
-                <div className="max-h-80 overflow-y-auto space-y-0.5 rounded-lg border">
-                  {crawledPages.length > 0 ? (
-                    crawledPages.map((page) => (
-                      <div
-                        key={page.id}
-                        className="flex items-center gap-2 px-3 py-2 text-sm border-b last:border-0 hover:bg-muted/50"
-                      >
-                        <Badge
-                          variant={
-                            page.crawl_status === 'crawled'
-                              ? 'success'
-                              : page.crawl_status === 'failed'
-                              ? 'destructive'
-                              : page.crawl_status === 'blocked'
-                              ? 'destructive'
-                              : 'secondary'
-                          }
-                          className="shrink-0 text-[10px]"
-                        >
-                          {page.crawl_status}
-                        </Badge>
-                        <span className="truncate text-xs text-muted-foreground flex-1">
-                          {page.url}
-                        </span>
-                        {page.skip_reason && (
-                          <span className="text-xs text-muted-foreground flex items-center gap-1 shrink-0">
-                            <AlertCircle className="h-3 w-3" />
-                            {page.skip_reason}
-                          </span>
-                        )}
-                        <Badge variant="outline" className="shrink-0 text-[10px]">
-                          {page.page_type}
-                        </Badge>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="py-8 text-center text-sm text-muted-foreground">
-                      {t('noPagesFound')}
-                    </p>
-                  )}
-                </div>
-              </CardContent>
-            )}
-          </Card>
-
-          {/* Scheduled Recrawl */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base flex items-center gap-2">
-                <Clock className="h-4 w-4" />
-                {t('scheduledRecrawl')}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center gap-3">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={recrawlEnabled}
-                    onChange={(e) => setRecrawlEnabled(e.target.checked)}
-                    className="rounded"
-                  />
-                  <span className="text-sm">{t('enableRecrawl')}</span>
-                </label>
-              </div>
-
-              {recrawlEnabled && (
-                <div className="space-y-2">
-                  <Label>{t('frequency')}</Label>
-                  <select
-                    value={recrawlFrequency}
-                    onChange={(e) => setRecrawlFrequency(parseInt(e.target.value))}
-                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                  >
-                    <option value={24}>{t('everyDay')}</option>
-                    <option value={72}>{t('every3Days')}</option>
-                    <option value={168}>{t('everyWeek')}</option>
-                    <option value={336}>{t('every2Weeks')}</option>
-                    <option value={720}>{t('everyMonth')}</option>
-                  </select>
-                </div>
-              )}
-
-              {recrawlPolicy?.next_run_at && recrawlPolicy.enabled && (
-                <p className="text-xs text-muted-foreground">
-                  {t('nextRun', { date: new Date(recrawlPolicy.next_run_at).toLocaleString() })}
-                </p>
-              )}
-
-              <Button variant="outline" size="sm" onClick={handleSaveRecrawlPolicy}>
-                <Save className="mr-1 h-3 w-3" />
-                {t('saveSchedule')}
-              </Button>
-            </CardContent>
-          </Card>
-
-          {/* Quick links */}
-          <div className="flex gap-3">
-            <Button asChild variant="outline" size="sm">
-              <Link href={`/agents/${id}/analytics`}>
-                <BarChart3 className="mr-1 h-3 w-3" />
-                {t('analytics')}
-              </Link>
-            </Button>
+        {message ? (
+          <div className="mt-6 rounded-[1.3rem] border border-border/70 bg-white/72 px-4 py-3 text-sm text-foreground">
+            {message}
           </div>
-        </Tabs.Content>
+        ) : null}
+      </section>
 
-        {/* ── SETTINGS TAB ───────────────────────────────────────────────────── */}
-        <Tabs.Content value="settings" className="space-y-4">
-          {/* Agent Configuration */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">{t('settings')}</CardTitle>
-              <CardDescription>
-                Update your agent&apos;s name, description, and behavior.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="agent-name">{t('agentName')}</Label>
-                <Input
-                  id="agent-name"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                />
-              </div>
+      <div className="metric-grid">
+        <ConsoleMetric label={t('stats.pages')} value={formatNumber(stats.pages)} icon={Search} />
+        <ConsoleMetric label={t('stats.chunks')} value={formatNumber(stats.chunks)} icon={Bot} />
+        <ConsoleMetric
+          label={t('stats.conversations')}
+          value={formatNumber(analytics?.summary.total_conversations || 0)}
+          icon={Activity}
+        />
+        <ConsoleMetric
+          label={t('stats.confidence')}
+          value={`${Math.round((analytics?.summary.avg_confidence || 0) * 100)}%`}
+          icon={Gauge}
+        />
+      </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="agent-description">{t('description')}</Label>
-                <Input
-                  id="agent-description"
-                  value={editDescription}
-                  onChange={(e) => setEditDescription(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="welcome-message">{t('welcomeMessage')}</Label>
-                <textarea
-                  id="welcome-message"
-                  value={editWelcomeMessage}
-                  onChange={(e) => setEditWelcomeMessage(e.target.value)}
-                  rows={3}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                  placeholder={t('welcomePlaceholder')}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="visibility">{t('visibility')}</Label>
-                <select
-                  id="visibility"
-                  value={editVisibility}
-                  onChange={(e) =>
-                    setEditVisibility(e.target.value as 'public' | 'private' | 'passcode')
-                  }
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                >
-                  <option value="public">{t('visibilityPublic')}</option>
-                  <option value="private">{t('visibilityPrivate')}</option>
-                  <option value="passcode">{t('visibilityPasscode')}</option>
-                </select>
-              </div>
-
-              {editVisibility === 'passcode' && (
-                <div className="space-y-2">
-                  <Label htmlFor="passcode">{t('passcode')}</Label>
-                  <Input
-                    id="passcode"
-                    type="password"
-                    value={editPasscode}
-                    onChange={(e) => setEditPasscode(e.target.value)}
-                    placeholder={t('passcodePlaceholder')}
-                    minLength={4}
-                  />
-                  <p className="text-xs text-muted-foreground">{t('passcodeHint')}</p>
-                </div>
-              )}
-
-              <div className="flex items-center gap-3">
-                <Button onClick={handleSaveSettings} disabled={saving}>
-                  {saving ? <Spinner className="mr-2" /> : <Save className="mr-2 h-4 w-4" />}
-                  {tCommon('save')}
-                </Button>
-                {saveSuccess && (
-                  <span className="text-sm text-green-600 flex items-center gap-1">
-                    <Check className="h-4 w-4" />
-                    {t('saved')}
-                  </span>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Starter Questions */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-primary" />
-                {t('starterQuestions')}
-              </CardTitle>
-              <CardDescription>
-                AI-generated conversation starters shown to users.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              {agentSettings?.starter_questions && agentSettings.starter_questions.length > 0 ? (
-                <div className="space-y-1">
-                  {agentSettings.starter_questions.map((q, i) => (
-                    <p key={i} className="text-sm text-muted-foreground">
-                      • {q}
-                    </p>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">{t('noStarters')}</p>
-              )}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleGenerateStarters}
-                disabled={generatingStarters}
-              >
-                <Sparkles className="mr-1 h-3 w-3" />
-                {generatingStarters ? t('generating') : t('autoGenerate')}
+      <div className="grid gap-5 xl:grid-cols-2">
+        <ConsoleCard
+          icon={Search}
+          title={t('knowledge.title')}
+          body={t('knowledge.copy')}
+          footer={
+            <div className="flex gap-3">
+              <Button variant="outline" asChild>
+                <Link href={`/agents/${agentId}/knowledge`}>{t('knowledge.open')}</Link>
               </Button>
-            </CardContent>
-          </Card>
-        </Tabs.Content>
+              <Button variant="ghost" asChild>
+                <Link href={`/agents/${agentId}/diff`}>{t('knowledge.diff')}</Link>
+              </Button>
+            </div>
+          }
+        >
+          <dl className="grid gap-3 sm:grid-cols-2">
+            <DataLine label={t('knowledge.pages')} value={formatNumber(stats.pages)} />
+            <DataLine label={t('knowledge.chunks')} value={formatNumber(stats.chunks)} />
+            <DataLine
+              label={t('knowledge.lastCrawl')}
+              value={
+                agent.crawl_stats?.completed_at
+                  ? formatDate(agent.crawl_stats.completed_at)
+                  : '-'
+              }
+            />
+            <DataLine
+              label={t('knowledge.failed')}
+              value={formatNumber(agent.crawl_stats?.errors || 0)}
+            />
+          </dl>
+        </ConsoleCard>
 
-        {/* ── SHARE TAB ──────────────────────────────────────────────────────── */}
-        <Tabs.Content value="share" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Link2 className="h-4 w-4" />
-                {t('shareLink')}
-              </CardTitle>
-              <CardDescription>
-                Share this link to let anyone chat with your agent.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                <code className="flex-1 rounded-md bg-muted px-3 py-2 text-sm break-all">
-                  {shareUrl}
-                </code>
+        <ConsoleCard
+          icon={Link2}
+          title={t('publish.title')}
+          body={t('publish.copy')}
+          footer={
+            <div className="flex flex-wrap gap-3">
+              <Button onClick={saveSettings} disabled={busy}>
+                {busy ? <Spinner /> : null}
+                {t('publish.save')}
+              </Button>
+              {shareUrl ? (
                 <Button
                   variant="outline"
-                  size="sm"
-                  onClick={handleCopyLink}
-                  className="shrink-0"
+                  onClick={() => copyValue(shareUrl, t('messages.linkCopied'))}
                 >
-                  {copied ? (
-                    <>
-                      <Check className="mr-1 h-4 w-4" />
-                      {t('copied')}
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="mr-1 h-4 w-4" />
-                      {t('copyLink')}
-                    </>
-                  )}
+                  <Copy className="h-4 w-4" />
+                  {t('publish.copyLink')}
                 </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </Tabs.Content>
+              ) : null}
+            </div>
+          }
+        >
+          <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field label={t('publish.name')}>
+                <Input value={name} onChange={(event) => setName(event.target.value)} />
+              </Field>
+              <Field label={t('publish.visibility')}>
+                <select
+                  value={visibility}
+                  onChange={(event) =>
+                    setVisibility(event.target.value as 'public' | 'private' | 'passcode')
+                  }
+                  className="flex h-11 w-full rounded-2xl border border-input bg-white/72 px-4 text-sm outline-none transition-[border-color,box-shadow] focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
+                >
+                  <option value="public">{t('publish.visibilityOptions.public')}</option>
+                  <option value="private">{t('publish.visibilityOptions.private')}</option>
+                  <option value="passcode">{t('publish.visibilityOptions.passcode')}</option>
+                </select>
+              </Field>
+            </div>
+            <Field label={t('publish.description')}>
+              <textarea
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+                className="min-h-28 w-full rounded-[1.5rem] border border-input bg-white/72 px-4 py-3 text-sm outline-none transition-[border-color,box-shadow] focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
+              />
+            </Field>
+            {visibility === 'passcode' ? (
+              <Field label={t('publish.passcode')}>
+                <Input
+                  type="password"
+                  value={passcode}
+                  onChange={(event) => setPasscode(event.target.value)}
+                  placeholder={t('publish.passcodePlaceholder')}
+                />
+              </Field>
+            ) : null}
+            <div className="rounded-[1.3rem] border border-border/70 bg-white/72 p-4 text-sm text-muted-foreground">
+              {shareUrl}
+            </div>
+          </div>
+        </ConsoleCard>
 
-        {/* ── KNOWLEDGE TAB ──────────────────────────────────────────────────── */}
-        <Tabs.Content value="knowledge">
-          <Card>
-            <CardContent className="py-8 text-center">
-              <Database className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
-              <p className="text-sm text-muted-foreground mb-3">
-                Browse your agent&apos;s knowledge base
-              </p>
-              <Button variant="outline" asChild>
-                <Link href={`/agents/${agent.id}/knowledge`}>Open Knowledge Browser</Link>
+        <ConsoleCard
+          icon={ShieldCheck}
+          title={t('guardrails.title')}
+          body={t('guardrails.copy')}
+          footer={
+            <div className="flex gap-3">
+              <Button onClick={saveSettings} disabled={busy}>
+                {t('guardrails.save')}
               </Button>
-            </CardContent>
-          </Card>
-        </Tabs.Content>
-      </Tabs.Root>
+              <Button variant="outline" onClick={generateStarters} disabled={busy}>
+                {t('guardrails.generate')}
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-4">
+            <Field label={t('guardrails.welcomeMessage')}>
+              <textarea
+                value={welcomeMessage}
+                onChange={(event) => setWelcomeMessage(event.target.value)}
+                className="min-h-28 w-full rounded-[1.5rem] border border-input bg-white/72 px-4 py-3 text-sm outline-none transition-[border-color,box-shadow] focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
+              />
+            </Field>
+            <div className="space-y-2">
+              <Label>{t('guardrails.starters')}</Label>
+              <div className="flex flex-wrap gap-2">
+                {settings?.starter_questions?.length ? (
+                  settings.starter_questions.map((question) => (
+                    <Badge key={question} variant="outline" className="bg-white/80">
+                      {question}
+                    </Badge>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground">{t('guardrails.empty')}</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </ConsoleCard>
+
+        <ConsoleCard
+          icon={Globe}
+          title={t('domains.title')}
+          body={t('domains.copy')}
+          footer={
+            <div className="flex gap-3">
+              <Button onClick={addDomain} disabled={busy || !newDomain.trim()}>
+                {t('domains.add')}
+              </Button>
+              <Button onClick={saveCustomDomain} variant="outline" disabled={busy || !customDomain.trim()}>
+                {t('domains.saveCustom')}
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-4">
+            <Field label={t('domains.custom')}>
+              <Input
+                value={customDomain}
+                onChange={(event) => setCustomDomain(event.target.value)}
+                placeholder="chat.example.com"
+              />
+            </Field>
+            <Badge variant={customDomainVerified ? 'success' : 'outline'}>
+              {customDomainVerified ? t('domains.verified') : t('domains.pending')}
+            </Badge>
+            <Field label={t('domains.additional')}>
+              <Input
+                value={newDomain}
+                onChange={(event) => setNewDomain(event.target.value)}
+                placeholder="docs.example.com"
+              />
+            </Field>
+            <div className="space-y-2">
+              {domains.length ? (
+                domains.map((domain) => (
+                  <div
+                    key={domain.id}
+                    className="flex items-center justify-between rounded-[1.2rem] border border-border/70 bg-white/72 px-4 py-3 text-sm"
+                  >
+                    <span>{domain.domain}</span>
+                    {domain.is_primary ? (
+                      <Badge variant="success">{t('domains.primary')}</Badge>
+                    ) : null}
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">{t('domains.empty')}</p>
+              )}
+            </div>
+          </div>
+        </ConsoleCard>
+
+        <ConsoleCard
+          icon={Radar}
+          title={t('monitoring.title')}
+          body={t('monitoring.copy')}
+          footer={
+            <div className="flex gap-3">
+              <Button onClick={saveRecrawlPolicy} disabled={busy}>
+                {t('monitoring.save')}
+              </Button>
+              <Button variant="outline" asChild>
+                <Link href={`/monitor?agentId=${agentId}`}>{t('monitoring.open')}</Link>
+              </Button>
+            </div>
+          }
+        >
+          <div className="grid gap-4 md:grid-cols-2">
+            <Field label={t('monitoring.status')}>
+              <Badge variant={recrawlEnabled ? 'success' : 'outline'}>
+                {recrawlEnabled ? t('monitoring.enabled') : t('monitoring.disabled')}
+              </Badge>
+            </Field>
+            <Field label={t('monitoring.frequency')}>
+              <select
+                value={recrawlFrequency}
+                onChange={(event) => setRecrawlFrequency(event.target.value)}
+                className="flex h-11 w-full rounded-2xl border border-input bg-white/72 px-4 text-sm outline-none transition-[border-color,box-shadow] focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
+              >
+                <option value="24">24h</option>
+                <option value="72">72h</option>
+                <option value="168">168h</option>
+                <option value="336">336h</option>
+              </select>
+            </Field>
+            <Field label={t('monitoring.nextRun')}>
+              <div className="rounded-[1.2rem] border border-border/70 bg-white/72 px-4 py-3 text-sm text-muted-foreground">
+                {policy?.next_run_at ? formatDate(policy.next_run_at) : t('monitoring.noNextRun')}
+              </div>
+            </Field>
+            <Field label={t('monitoring.failures')}>
+              <div className="rounded-[1.2rem] border border-border/70 bg-white/72 px-4 py-3 text-sm text-muted-foreground">
+                {formatNumber(agent.crawl_stats?.errors || 0)}
+              </div>
+            </Field>
+          </div>
+        </ConsoleCard>
+
+        <ConsoleCard
+          icon={Activity}
+          title={t('analytics.title')}
+          body={t('analytics.copy')}
+          footer={
+            <div className="flex gap-3">
+              <Button variant="outline" asChild>
+                <Link href={`/insights?agentId=${agentId}`}>{t('analytics.openInsights')}</Link>
+              </Button>
+              <Button variant="ghost" asChild>
+                <Link href={`/agents/${agentId}/analytics`}>{t('analytics.deepDive')}</Link>
+              </Button>
+            </div>
+          }
+        >
+          <dl className="grid gap-3 sm:grid-cols-2">
+            <DataLine
+              label={t('analytics.conversations')}
+              value={formatNumber(analytics?.summary.total_conversations || 0)}
+            />
+            <DataLine
+              label={t('analytics.messages')}
+              value={formatNumber(analytics?.summary.total_messages || 0)}
+            />
+            <DataLine
+              label={t('analytics.confidence')}
+              value={`${Math.round((analytics?.summary.avg_confidence || 0) * 100)}%`}
+            />
+            <DataLine
+              label={t('analytics.lowConfidence')}
+              value={formatNumber(analytics?.summary.low_confidence_count || 0)}
+            />
+          </dl>
+        </ConsoleCard>
+
+        <ConsoleCard
+          icon={Sparkles}
+          title={t('eval.title')}
+          body={t('eval.copy')}
+          footer={
+            <Button variant="outline" asChild>
+              <Link href={`/agents/${agentId}/eval`}>{t('eval.open')}</Link>
+            </Button>
+          }
+        >
+          <p className="text-sm leading-6 text-muted-foreground">{t('eval.description')}</p>
+        </ConsoleCard>
+
+        <ConsoleCard
+          icon={Link2}
+          title={t('shareLinks.title')}
+          body={t('shareLinks.copy')}
+          footer={
+            <div className="flex gap-3">
+              <Input
+                value={shareLabel}
+                onChange={(event) => setShareLabel(event.target.value)}
+                placeholder={t('shareLinks.labelPlaceholder')}
+              />
+              <Button onClick={createShareLink} disabled={busy}>
+                {t('shareLinks.create')}
+              </Button>
+            </div>
+          }
+        >
+          <div className="space-y-3">
+            {shareLinks.length ? (
+              shareLinks.map((link) => {
+                const url =
+                  typeof window === 'undefined'
+                    ? link.token
+                    : `${window.location.origin}/agent/${agent.slug}?token=${link.token}`;
+
+                return (
+                  <div
+                    key={link.id}
+                    className="rounded-[1.3rem] border border-border/70 bg-white/72 p-4"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-medium">
+                          {link.label || t('shareLinks.untitled')}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {formatDate(link.created_at)}
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => copyValue(url, t('messages.linkCopied'))}
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <p className="text-sm text-muted-foreground">{t('shareLinks.empty')}</p>
+            )}
+          </div>
+        </ConsoleCard>
+      </div>
+    </div>
+  );
+}
+
+function ConsoleMetric({
+  label,
+  value,
+  icon: Icon,
+}: {
+  label: string;
+  value: string;
+  icon: typeof Search;
+}) {
+  return (
+    <Card>
+      <CardContent className="p-5">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-secondary text-secondary-foreground">
+            <Icon className="h-4 w-4" />
+          </div>
+          <div>
+            <p className="text-sm text-muted-foreground">{label}</p>
+            <div className="mt-1 text-2xl font-semibold">{value}</div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ConsoleCard({
+  icon: Icon,
+  title,
+  body,
+  children,
+  footer,
+}: {
+  icon: typeof Search;
+  title: string;
+  body: string;
+  children: ReactNode;
+  footer?: ReactNode;
+}) {
+  return (
+    <Card>
+      <CardHeader className="space-y-4">
+        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-secondary text-secondary-foreground">
+          <Icon className="h-5 w-5" />
+        </div>
+        <div>
+          <CardTitle className="text-xl">{title}</CardTitle>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">{body}</p>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {children}
+        {footer ? <div className="flex flex-wrap gap-3">{footer}</div> : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+      {children}
+    </div>
+  );
+}
+
+function DataLine({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-[1.2rem] border border-border/70 bg-white/72 px-4 py-3">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <div className="mt-2 text-lg font-semibold">{value}</div>
     </div>
   );
 }
