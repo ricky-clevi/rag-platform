@@ -77,7 +77,7 @@ export function ChatInterface({
                 <div className="flex flex-col gap-2 pl-11">
                   <p className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                     <MessageCircle className="h-3 w-3" />
-                    Try asking:
+                    {t('tryAsking')}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {starterQuestions.map((question, index) => (

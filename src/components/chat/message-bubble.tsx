@@ -1,4 +1,5 @@
-import { Bot, User, AlertTriangle } from 'lucide-react';
+import { useState } from 'react';
+import { Bot, User, AlertTriangle, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { CitationDrawer } from './citation-drawer';
 import { ConfidenceBadge } from './confidence-badge';
@@ -24,9 +25,14 @@ export function MessageBubble({
   model_used,
   answered_from_sources_only,
 }: MessageBubbleProps) {
+  const [feedback, setFeedback] = useState<'positive' | 'negative' | null>(null);
   const isUser = role === 'user';
   const isLowConfidence = confidence !== undefined && confidence < 0.4;
   const usedGeneralKnowledge = answered_from_sources_only === false;
+
+  const handleFeedback = (type: 'positive' | 'negative') => {
+    setFeedback(prev => (prev === type ? null : type));
+  };
 
   return (
     <div className={cn('flex gap-3', isUser && 'flex-row-reverse')}>
@@ -84,6 +90,26 @@ export function MessageBubble({
         {/* Citation Drawer */}
         {sources && sources.length > 0 && !isStreaming && (
           <CitationDrawer sources={sources} />
+        )}
+
+        {/* Feedback buttons */}
+        {role === 'assistant' && !isStreaming && (
+          <div className="mt-2 flex items-center gap-1">
+            <button
+              onClick={() => handleFeedback('positive')}
+              className={`rounded p-1 transition-colors hover:bg-muted ${feedback === 'positive' ? 'text-green-500' : 'text-muted-foreground'}`}
+              title="Helpful"
+            >
+              <ThumbsUp className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={() => handleFeedback('negative')}
+              className={`rounded p-1 transition-colors hover:bg-muted ${feedback === 'negative' ? 'text-red-500' : 'text-muted-foreground'}`}
+              title="Not helpful"
+            >
+              <ThumbsDown className="h-3.5 w-3.5" />
+            </button>
+          </div>
         )}
       </div>
     </div>

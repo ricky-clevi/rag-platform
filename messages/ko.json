@@ -115,7 +115,17 @@
       "descriptionPlaceholder": "다음에 대한 질문에 답하는 AI 에이전트...",
       "crawlButton": "크롤링 및 에이전트 생성",
       "crawling": "웹사이트 크롤링 중...",
-      "invalidUrl": "유효한 URL을 입력해주세요"
+      "invalidUrl": "유효한 URL을 입력해주세요",
+      "previewButton": "미리보기",
+      "previewLoading": "웹사이트 분석 중...",
+      "previewTitle": "웹사이트 미리보기",
+      "estimatedPages": "예상 페이지 수",
+      "hasSitemap": "사이트맵 발견",
+      "isSpa": "싱글 페이지 앱",
+      "estimatedTime": "예상 시간",
+      "crawlAllowed": "크롤링 허용",
+      "notReachable": "웹사이트에 접근할 수 없습니다",
+      "minutes": "분"
     },
     "status": {
       "draft": "초안",
@@ -132,6 +142,35 @@
       "settings": "설정",
       "share": "공유",
       "delete": "삭제"
+    },
+    "crawl": {
+      "pagesCrawled": "{count}개 페이지 크롤링됨",
+      "chunksCreated": "생성된 청크",
+      "viewAgent": "에이전트 보기",
+      "crawlFailed": "크롤링에 실패했습니다. 다시 시도해주세요.",
+      "connecting": "크롤링 스트림 연결 중...",
+      "crawling": "크롤링 진행 중",
+      "completed": "크롤링 완료!",
+      "failed": "크롤링 실패",
+      "pagesFound": "크롤링된 페이지",
+      "errors": "오류",
+      "elapsed": "경과 시간",
+      "eta": "예상 남은 시간",
+      "currentlyCrawling": "현재 크롤링 중"
+    },
+    "knowledge": {
+      "title": "지식 베이스",
+      "subtitle": "에이전트가 알고 있는 내용을 검색하고 탐색하세요",
+      "crawledPages": "크롤링된 페이지",
+      "totalPages": "전체 페이지",
+      "failedPages": "실패한 페이지",
+      "searchPlaceholder": "지식 베이스 검색...",
+      "searchButton": "검색",
+      "searchResults": "{count}개의 결과를 찾았습니다",
+      "noResults": "일치하는 내용을 찾을 수 없습니다",
+      "pageList": "크롤링된 페이지",
+      "selectPage": "페이지 미리보기",
+      "selectPageHint": "목록에서 페이지를 선택하여 내용을 미리 확인하세요"
     },
     "detail": {
       "overview": "개요",
@@ -187,6 +226,19 @@
     "welcome": "안녕하세요! 저는 {companyName}에 대한 지식을 가진 AI 어시스턴트입니다. 무엇이든 물어보세요!",
     "error": "죄송합니다, 오류가 발생했습니다. 다시 시도해주세요.",
     "poweredBy": "AgentForge 제공",
-    "noSources": "이 응답에 대한 특정 출처가 없습니다"
+    "noSources": "이 응답에 대한 특정 출처가 없습니다",
+    "tryAsking": "이런 질문을 해보세요:",
+    "lowConfidenceWarning": "이 답변은 불완전할 수 있습니다. 회사 웹사이트에서 충분히 뒷받침되지 않은 정보입니다.",
+    "generalKnowledgeWarning": "이 답변에는 회사 웹사이트 콘텐츠 외의 정보가 포함되어 있습니다.",
+    "confidenceHigh": "높은 신뢰도",
+    "confidenceMedium": "보통 신뢰도",
+    "confidenceLow": "낮은 신뢰도",
+    "passcodeTitle": "이 에이전트는 비밀번호로 보호되어 있습니다. 비밀번호를 입력하여 계속하세요.",
+    "passcodeLabel": "비밀번호",
+    "passcodePlaceholder": "비밀번호 입력",
+    "passcodeSubmit": "확인 후 계속",
+    "passcodeRequired": "비밀번호를 입력해주세요",
+    "passcodeInvalid": "잘못된 비밀번호입니다. 다시 시도해주세요.",
+    "passcodeFailed": "인증에 실패했습니다. 다시 시도해주세요."
   }
 }

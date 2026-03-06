@@ -59,7 +59,20 @@ export function useChat(agentId: string, shareToken?: string) {
         });
 
         if (!response.ok) {
-          throw new Error('Chat request failed');
+          let errorMessage = 'Chat request failed';
+          try {
+            const errorBody = await response.json();
+            errorMessage = errorBody.error || errorMessage;
+          } catch {
+            // Could not parse error body
+          }
+          if (response.status === 429) {
+            const retryAfter = response.headers.get('Retry-After');
+            errorMessage = retryAfter
+              ? `${errorMessage} Please try again in ${retryAfter} seconds.`
+              : errorMessage;
+          }
+          throw new Error(errorMessage);
         }
 
         const reader = response.body?.getReader();
@@ -100,7 +113,7 @@ export function useChat(agentId: string, shareToken?: string) {
                             ...msg,
                             sources: parsed.sources,
                             isStreaming: false,
-                            confidence: parsed.confidence,
+                            confidence: parsed.confidence ?? undefined,
                             model_used: parsed.model_used,
                             answered_from_sources_only: parsed.answered_from_sources_only,
                           }
@@ -141,12 +154,15 @@ export function useChat(agentId: string, shareToken?: string) {
       } catch (error) {
         if (error instanceof Error && error.name === 'AbortError') return;
 
+        const displayError = error instanceof Error
+          ? error.message
+          : 'Sorry, an error occurred. Please try again.';
         setMessages((prev) =>
           prev.map((msg) =>
             msg.id === assistantMessage.id
               ? {
                   ...msg,
-                  content: 'Sorry, an error occurred. Please try again.',
+                  content: displayError,
                   isStreaming: false,
                 }
               : msg

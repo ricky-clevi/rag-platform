@@ -123,10 +123,10 @@ export function filterBoilerplate(
 export function isLikelyBoilerplate(content: string): boolean {
   const lower = content.toLowerCase().trim();
 
-  // Very short content that's likely navigation/UI text
-  if (lower.length < 30) return true;
+  // Too short to be meaningful content
+  if (lower.length < 80) return true;
 
-  // Common boilerplate patterns
+  // Common boilerplate patterns — only use pattern matching, not length alone
   const boilerplatePatterns = [
     /^(copyright|©)\s/i,
     /^all rights reserved/i,

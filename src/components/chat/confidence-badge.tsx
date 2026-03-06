@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import { Shield, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 
@@ -9,6 +10,7 @@ interface ConfidenceBadgeProps {
 }
 
 export function ConfidenceBadge({ confidence, model_used }: ConfidenceBadgeProps) {
+  const t = useTranslations('chat');
   const percentage = Math.round(confidence * 100);
 
   let level: 'high' | 'medium' | 'low';
@@ -29,7 +31,7 @@ export function ConfidenceBadge({ confidence, model_used }: ConfidenceBadgeProps
     colorClass = 'text-red-600 bg-red-50 border-red-200';
   }
 
-  const labelMap = { high: 'High confidence', medium: 'Medium confidence', low: 'Low confidence' };
+  const labelMap = { high: t('confidenceHigh'), medium: t('confidenceMedium'), low: t('confidenceLow') };
 
   // Short model display name
   const modelLabel = model_used?.replace('gemini-', '').replace('-preview', '') || undefined;

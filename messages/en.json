@@ -115,7 +115,17 @@
       "descriptionPlaceholder": "AI agent for answering questions about...",
       "crawlButton": "Crawl & Create Agent",
       "crawling": "Crawling website...",
-      "invalidUrl": "Please enter a valid URL"
+      "invalidUrl": "Please enter a valid URL",
+      "previewButton": "Preview",
+      "previewLoading": "Analyzing website...",
+      "previewTitle": "Website Preview",
+      "estimatedPages": "Estimated Pages",
+      "hasSitemap": "Sitemap Found",
+      "isSpa": "Single Page App",
+      "estimatedTime": "Estimated Time",
+      "crawlAllowed": "Crawling Allowed",
+      "notReachable": "Website could not be reached",
+      "minutes": "minutes"
     },
     "status": {
       "draft": "Draft",
@@ -135,9 +145,32 @@
     },
     "crawl": {
       "pagesCrawled": "{count} pages crawled",
-      "chunksCreated": "{count} chunks created",
+      "chunksCreated": "Chunks created",
       "viewAgent": "View Agent",
-      "crawlFailed": "Crawling failed. Please try again."
+      "crawlFailed": "Crawling failed. Please try again.",
+      "connecting": "Connecting to crawl stream...",
+      "crawling": "Crawling in progress",
+      "completed": "Crawl completed!",
+      "failed": "Crawl failed",
+      "pagesFound": "Pages crawled",
+      "errors": "Errors",
+      "elapsed": "Elapsed",
+      "eta": "ETA",
+      "currentlyCrawling": "Currently crawling"
+    },
+    "knowledge": {
+      "title": "Knowledge Base",
+      "subtitle": "Browse and search what your agent knows about",
+      "crawledPages": "Crawled Pages",
+      "totalPages": "Total Pages",
+      "failedPages": "Failed Pages",
+      "searchPlaceholder": "Search the knowledge base...",
+      "searchButton": "Search",
+      "searchResults": "{count} results found",
+      "noResults": "No matching content found",
+      "pageList": "Crawled Pages",
+      "selectPage": "Page Preview",
+      "selectPageHint": "Select a page from the list to preview its content"
     },
     "detail": {
       "overview": "Overview",
@@ -193,6 +226,19 @@
     "welcome": "Hello! I'm an AI assistant with knowledge about {companyName}. Ask me anything!",
     "error": "Sorry, I encountered an error. Please try again.",
     "poweredBy": "Powered by AgentForge",
-    "noSources": "No specific sources for this response"
+    "noSources": "No specific sources for this response",
+    "tryAsking": "Try asking:",
+    "lowConfidenceWarning": "This answer may be incomplete. The information was not strongly supported by the company's website.",
+    "generalKnowledgeWarning": "This answer includes information beyond the company's website content.",
+    "confidenceHigh": "High confidence",
+    "confidenceMedium": "Medium confidence",
+    "confidenceLow": "Low confidence",
+    "passcodeTitle": "This agent is passcode-protected. Enter the passcode to continue.",
+    "passcodeLabel": "Passcode",
+    "passcodePlaceholder": "Enter passcode",
+    "passcodeSubmit": "Verify & Continue",
+    "passcodeRequired": "Please enter a passcode",
+    "passcodeInvalid": "Invalid passcode. Please try again.",
+    "passcodeFailed": "Verification failed. Please try again."
   }
 }

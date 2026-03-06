@@ -1,11 +1,23 @@
 import { createHash } from 'crypto';
+import pLimit from 'p-limit';
 import robotsParser from 'robots-parser';
 import { crawlPageHttp } from './http-crawler';
 import { crawlPageBrowser } from './browser-crawler';
+import { closeBrowserPool } from './browser-pool';
 import { chunkText, type TextChunk } from './chunker';
 import { extractPdfText, isPdfWithinLimit } from './pdf-extractor';
 import { isLikelyBoilerplate } from './boilerplate-dedup';
 import { normalizeUrl, shouldSkipUrl, isInDomainScope, isPdfUrl } from '@/lib/utils/url';
+import type { StructuredData } from './structured-data';
+import type { ExtractedContent } from './content-extractor';
+
+interface CrawlPageContent extends ExtractedContent {
+  etag: string | null;
+  lastModified: string | null;
+  statusCode: number;
+  rawHtmlLength: number;
+  pageType: 'html' | 'pdf' | 'other';
+}
 
 export interface CrawlResult {
   url: string;
@@ -21,6 +33,7 @@ export interface CrawlResult {
   contentHash: string;
   pageType: 'html' | 'pdf' | 'other';
   robotsAllowed: boolean;
+  structuredData?: StructuredData;
 }
 
 export interface SkippedPage {
@@ -146,7 +159,7 @@ async function discoverSitemapUrls(baseUrl: string, robotsTxt?: string | null): 
         }
       }
 
-      if (urls.length > 0) break;
+      // Collect URLs from ALL sitemaps, not just the first successful one
     } catch {
       continue;
     }
@@ -199,6 +212,52 @@ async function crawlPdfPage(url: string): Promise<CrawlResult | null> {
   }
 }
 
+/**
+ * Detect if a page is a Single Page Application (SPA).
+ * Checks for common SPA root elements with minimal text content.
+ */
+async function detectSpa(startUrl: string): Promise<boolean> {
+  try {
+    const response = await fetch(startUrl, {
+      headers: { 'User-Agent': `Mozilla/5.0 (compatible; ${USER_AGENT}/1.0)` },
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!response.ok) return false;
+    const html = await response.text();
+
+    // Check for common SPA root elements
+    const spaIndicators = [
+      '<div id="root"',
+      '<div id="app"',
+      '<div id="__next"',
+      '<div id="__nuxt"',
+      '<div id="__gatsby"',
+      'id="svelte"',
+    ];
+
+    const hasSpaRoot = spaIndicators.some(indicator => html.includes(indicator));
+    if (!hasSpaRoot) return false;
+
+    // Check if there's minimal text content (SPA body is mostly empty before JS runs)
+    const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+    if (!bodyMatch) return false;
+
+    // Strip script and style tags
+    const bodyContent = bodyMatch[1]
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<[^>]+>/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    // If body text is very short after removing scripts/styles, it's likely an SPA
+    return bodyContent.length < 200;
+  } catch {
+    return false;
+  }
+}
+
 export async function crawlWebsite(
   startUrl: string,
   callbacks: CrawlCallbacks,
@@ -217,10 +276,20 @@ export async function crawlWebsite(
   const MAX_PAGES = 5000;
   const allowedDomains = options.allowedDomains || [];
 
+  // Concurrency limiters
+  const httpLimit = pLimit(5);
+  const browserLimit = pLimit(2);
+
   // Fetch and parse robots.txt
   const robotsResult = await fetchRobotsTxt(normalizedStart);
   const robots = robotsResult?.parser || null;
   const robotsRawText = robotsResult?.rawText || null;
+
+  // Detect if the site is a SPA
+  const isSpa = await detectSpa(normalizedStart);
+  if (isSpa) {
+    console.log(`Detected SPA at ${normalizedStart}, using browser crawling for all pages`);
+  }
 
   // Discover sitemap URLs (including robots.txt Sitemap: directives)
   const sitemapUrls = await discoverSitemapUrls(normalizedStart, robotsRawText);
@@ -236,39 +305,19 @@ export async function crawlWebsite(
     }
   }
 
-  while (queue.length > 0) {
-    const url = queue.shift()!;
+  // Get the robots.txt crawl delay
+  const crawlDelay = robots?.getCrawlDelay(USER_AGENT);
+  const delayMs = crawlDelay ? crawlDelay * 1000 : DELAY_MS;
 
-    if (visited.has(url)) continue;
+  // Track crawled count for progress
+  let crawledCount = 0;
 
+  async function processUrl(url: string): Promise<void> {
     const isPdf = isPdfUrl(url);
-    if (!isPdf && shouldSkipUrl(url, { allowPdf: false })) {
-      skipped++;
-      skippedPages.push({ url, reason: 'excluded_pattern', timestamp: new Date().toISOString() });
-      callbacks.onPageSkipped?.(url, 'excluded_pattern');
-      continue;
-    }
-
-    // Respect robots.txt rules
-    const robotsAllowed = !robots || robots.isAllowed(url, USER_AGENT) !== false;
-    if (!robotsAllowed) {
-      skipped++;
-      skippedPages.push({ url, reason: 'robots.txt', timestamp: new Date().toISOString() });
-      callbacks.onPageSkipped?.(url, 'robots.txt');
-      continue;
-    }
-
-    visited.add(url);
-    callbacks.onProgress(visited.size, visited.size + queue.length, url);
 
     try {
       if (isPdf) {
         // Handle PDF files (#4)
-        const existing = options.existingPages?.get(url);
-        if (existing?.contentHash) {
-          // For incremental, skip unchanged PDFs by checking last-modified
-        }
-
         const pdfResult = await crawlPdfPage(url);
         if (pdfResult) {
           // Filter boilerplate from PDF chunks (#12)
@@ -277,23 +326,28 @@ export async function crawlWebsite(
           await callbacks.onPageCrawled(pdfResult);
         }
       } else {
-        // Hybrid approach: try HTTP first, fall back to browser
+        // Hybrid approach: try HTTP first (unless SPA), fall back to browser
         const existing = options.existingPages?.get(url);
-        const conditionalOpts = existing
-          ? { ifNoneMatch: existing.etag, ifModifiedSince: existing.lastModified }
-          : undefined;
+        let content: CrawlPageContent | null = null;
 
-        const extracted = await crawlPageHttp(url, conditionalOpts);
+        if (!isSpa) {
+          const conditionalOpts = existing
+            ? { ifNoneMatch: existing.etag, ifModifiedSince: existing.lastModified }
+            : undefined;
 
-        // 304 Not Modified — skip processing
-        if (extracted && extracted.statusCode === 304) {
-          skipped++;
-          skippedPages.push({ url, reason: 'not_modified', timestamp: new Date().toISOString() });
-          callbacks.onPageSkipped?.(url, 'not_modified');
-          continue;
+          const extracted = await crawlPageHttp(url, conditionalOpts);
+
+          // 304 Not Modified — skip processing
+          if (extracted && extracted.statusCode === 304) {
+            skipped++;
+            skippedPages.push({ url, reason: 'not_modified', timestamp: new Date().toISOString() });
+            callbacks.onPageSkipped?.(url, 'not_modified');
+            return;
+          }
+
+          content = extracted;
         }
 
-        let content = extracted;
         if (!content) {
           const browserResult = await crawlPageBrowser(url);
           if (browserResult) {
@@ -309,7 +363,7 @@ export async function crawlWebsite(
         }
 
         if (!content || content.text.length < 50) {
-          continue;
+          return;
         }
 
         // Content hashing for deduplication
@@ -318,7 +372,7 @@ export async function crawlWebsite(
           skipped++;
           skippedPages.push({ url, reason: 'content_unchanged', timestamp: new Date().toISOString() });
           callbacks.onPageSkipped?.(url, 'content_unchanged');
-          continue;
+          return;
         }
 
         // Chunk the content, filtering boilerplate (#12)
@@ -339,12 +393,13 @@ export async function crawlWebsite(
           rawHtmlLength: content.rawHtmlLength,
           contentHash,
           pageType: content.pageType,
-          robotsAllowed,
+          robotsAllowed: true,
+          structuredData: content.structuredData,
         };
 
         await callbacks.onPageCrawled(result);
 
-        // Discover new URLs from links (#6 — domain-aware)
+        // Discover new URLs from links (#6 -- domain-aware)
         for (const link of content.links) {
           if (queued.size >= MAX_PAGES) break;
           const normalizedLink = normalizeUrl(link);
@@ -369,11 +424,52 @@ export async function crawlWebsite(
       );
     }
 
-    // Rate limiting
-    const crawlDelay = robots?.getCrawlDelay(USER_AGENT);
-    const delayMs = crawlDelay ? crawlDelay * 1000 : DELAY_MS;
+    crawledCount++;
+    callbacks.onProgress(crawledCount, queued.size, url);
+  }
+
+  // Main loop processes batches of URLs concurrently
+  while (queue.length > 0) {
+    const batch = queue.splice(0, Math.min(queue.length, 10));
+    const tasks: Promise<void>[] = [];
+
+    for (const url of batch) {
+      if (visited.has(url)) continue;
+
+      const isPdf = isPdfUrl(url);
+      if (!isPdf && shouldSkipUrl(url, { allowPdf: false })) {
+        skipped++;
+        skippedPages.push({ url, reason: 'excluded_pattern', timestamp: new Date().toISOString() });
+        callbacks.onPageSkipped?.(url, 'excluded_pattern');
+        continue;
+      }
+
+      // Respect robots.txt rules
+      const robotsAllowed = !robots || robots.isAllowed(url, USER_AGENT) !== false;
+      if (!robotsAllowed) {
+        skipped++;
+        skippedPages.push({ url, reason: 'robots.txt', timestamp: new Date().toISOString() });
+        callbacks.onPageSkipped?.(url, 'robots.txt');
+        continue;
+      }
+
+      visited.add(url);
+
+      if (isPdf || isSpa) {
+        tasks.push(browserLimit(() => processUrl(url)));
+      } else {
+        tasks.push(httpLimit(() => processUrl(url)));
+      }
+    }
+
+    await Promise.allSettled(tasks);
+
+    // Rate limiting between batches
     await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
+
+  // Clean up browser pool
+  await closeBrowserPool();
 
   return {
     totalPages: visited.size,
@@ -383,3 +479,4 @@ export async function crawlWebsite(
     skippedPages,
   };
 }
+

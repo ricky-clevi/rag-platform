@@ -8,6 +8,10 @@ import {
   getPasscodeSessionCookieName,
   verifyPasscodeSessionToken,
 } from '@/lib/security/passcode-session';
+import { enhanceQuery } from '@/lib/rag/query-enhancer';
+import { rerankChunks } from '@/lib/rag/reranker';
+import { buildConversationContext } from '@/lib/rag/conversation-memory';
+import { getCachedEmbedding, setCachedEmbedding } from '@/lib/rag/cache';
 import type { MatchedChunk, SourceCitation } from '@/types';
 
 export async function POST(request: NextRequest) {
@@ -175,92 +179,199 @@ export async function POST(request: NextRequest) {
     .eq('agent_id', agent_id)
     .single();
 
-  try {
-    // Generate embedding for the query
-    const queryEmbedding = await generateQueryEmbedding(message);
+  // Get or create conversation (before stream so we have convId)
+  let convId = conversation_id;
+  if (!convId) {
+    const insertData: Record<string, unknown> = {
+      agent_id,
+      session_id,
+      title: message.slice(0, 100),
+    };
+    if (validShareLink) {
+      insertData.share_link_id = validShareLink.id;
 
-    // Hybrid search: vector + full-text
-    const { data: matchedChunks } = await supabase.rpc('hybrid_search', {
-      query_embedding: JSON.stringify(queryEmbedding),
-      query_text: message,
-      match_agent_id: agent_id,
-      match_count: 8,
-      semantic_weight: 0.7,
-      keyword_weight: 0.3,
-    });
-
-    const context: MatchedChunk[] = matchedChunks || [];
-
-    // Get or create conversation
-    let convId = conversation_id;
-    if (!convId) {
-      const insertData: Record<string, unknown> = {
-        agent_id,
-        session_id,
-        title: message.slice(0, 100),
-      };
-      if (validShareLink) {
-        insertData.share_link_id = validShareLink.id;
-
-        // Increment use count atomically (#16) once per conversation creation.
-        // Use raw SQL via RPC for atomic increment to avoid read-modify-write race
-        await supabase.rpc('increment_counter', {
-          table_name: 'share_links',
-          row_id: validShareLink.id,
-          column_name: 'use_count',
-        }).then(null, () => {
-          // Fallback if RPC doesn't exist yet
-          return supabase
-            .from('share_links')
-            .update({ use_count: (validShareLink!.use_count || 0) + 1 })
-            .eq('id', validShareLink!.id);
-        });
-      }
-      const { data: conv } = await supabase
-        .from('conversations')
-        .insert(insertData)
-        .select('id')
-        .single();
-      convId = conv?.id;
-    }
-
-    // Get conversation history
-    let history: { role: 'user' | 'assistant'; content: string }[] = [];
-    if (convId) {
-      const { data: messages } = await supabase
-        .from('messages')
-        .select('role, content')
-        .eq('conversation_id', convId)
-        .order('created_at', { ascending: true })
-        .limit(10);
-      history = (messages || []) as { role: 'user' | 'assistant'; content: string }[];
-    }
-
-    // Save user message
-    if (convId) {
-      await supabase.from('messages').insert({
-        conversation_id: convId,
-        role: 'user',
-        content: message,
-        sources: [],
-        token_usage: {},
+      // Increment use count atomically (#16) once per conversation creation.
+      await supabase.rpc('increment_counter', {
+        table_name: 'share_links',
+        row_id: validShareLink.id,
+        column_name: 'use_count',
+      }).then(null, () => {
+        return supabase
+          .from('share_links')
+          .update({ use_count: (validShareLink!.use_count || 0) + 1 })
+          .eq('id', validShareLink!.id);
       });
     }
+    const { data: conv } = await supabase
+      .from('conversations')
+      .insert(insertData)
+      .select('id')
+      .single();
+    convId = conv?.id;
+  }
 
-    // Get page URLs for chunks to build sources
-    const pageIds = [...new Set(context.filter((c) => c.page_id).map((c) => c.page_id!))];
-    const { data: pages } = pageIds.length > 0
-      ? await supabase.from('pages').select('id, url, title').in('id', pageIds)
-      : { data: [] };
-    const pageMap = new Map((pages || []).map((p) => [p.id, p]));
+  // Get conversation history
+  let history: { role: 'user' | 'assistant'; content: string }[] = [];
+  if (convId) {
+    const { data: existingMessages } = await supabase
+      .from('messages')
+      .select('role, content')
+      .eq('conversation_id', convId)
+      .order('created_at', { ascending: true })
+      .limit(20);
+    history = (existingMessages || []) as { role: 'user' | 'assistant'; content: string }[];
+  }
 
-    // Stream response
-    const encoder = new TextEncoder();
-    let fullResponse = '';
+  // Save user message
+  if (convId) {
+    await supabase.from('messages').insert({
+      conversation_id: convId,
+      role: 'user',
+      content: message,
+      sources: [],
+      token_usage: {},
+    });
+  }
 
-    const stream = new ReadableStream({
-      async start(controller) {
+  const defaultModel = agentSettings?.default_model || 'gemini-3.1-flash-lite-preview';
+
+  // Stream response — all heavy lifting happens inside the stream
+  const encoder = new TextEncoder();
+
+  const stream = new ReadableStream({
+    async start(controller) {
+      try {
+        // Build conversation context with memory management
+        const { recentMessages, summary, contextForSearch } = await buildConversationContext(history);
+
+        // Enhance query using conversation context
+        const enhanced = await enhanceQuery(message, contextForSearch, agent.name);
+
+        // Generate embedding for enhanced query (check cache first)
+        let queryEmbedding = await getCachedEmbedding(enhanced.reformulated);
+        if (!queryEmbedding) {
+          queryEmbedding = await generateQueryEmbedding(enhanced.reformulated);
+          await setCachedEmbedding(enhanced.reformulated, queryEmbedding);
+        }
+
+        // Retrieve more chunks for re-ranking (15 instead of 8)
+        const { data: matchedChunks } = await supabase.rpc('hybrid_search', {
+          query_embedding: JSON.stringify(queryEmbedding),
+          query_text: enhanced.searchTerms.length > 0 ? enhanced.searchTerms.join(' ') : message,
+          match_agent_id: agent_id,
+          match_count: 15,
+          semantic_weight: 0.7,
+          keyword_weight: 0.3,
+        });
+
+        // Re-rank to top 6
+        const context: MatchedChunk[] = await rerankChunks(message, matchedChunks || [], 6);
+
+        // Get page URLs for chunks to build sources
+        const pageIds = [...new Set(context.filter((c) => c.page_id).map((c) => c.page_id!))];
+        const { data: pages } = pageIds.length > 0
+          ? await supabase.from('pages').select('id, url, title').in('id', pageIds)
+          : { data: [] };
+        const pageMap = new Map((pages || []).map((p: { id: string; url: string; title: string | null }) => [p.id, p]));
+
+        // Build history with summary for the chat model
+        const historyForChat: { role: 'user' | 'assistant'; content: string }[] = summary
+          ? [{ role: 'user' as const, content: `[Previous conversation summary: ${summary}]` }, ...recentMessages]
+          : recentMessages;
+
+        // REAL streaming — tokens arrive one by one
+        let fullResponse = '';
+        const generator = streamChatResponse(
+          agent.name,
+          agent.root_url,
+          message,
+          context,
+          historyForChat,
+          {
+            systemPrompt: agentSettings?.system_prompt,
+            temperature: agentSettings?.temperature,
+            maxTokens: agentSettings?.max_tokens,
+            model: defaultModel,
+          }
+        );
+
+        for await (const chunk of generator) {
+          fullResponse += chunk;
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify({ type: 'text', content: chunk })}\n\n`)
+          );
+        }
+
+        // Build sources from re-ranked context chunks
+        const sources: SourceCitation[] = context
+          .slice(0, 5)
+          .map((chunk) => {
+            const page = chunk.page_id ? pageMap.get(chunk.page_id) : null;
+            return {
+              url: page?.url || '',
+              title: page?.title || '',
+              snippet: chunk.snippet || chunk.content.slice(0, 150),
+              heading_path: chunk.heading_path || undefined,
+              similarity: chunk.similarity,
+            };
+          })
+          .filter((s) => s.url);
+
+        // Send sources after stream completes
+        controller.enqueue(
+          encoder.encode(
+            `data: ${JSON.stringify({
+              type: 'sources',
+              sources,
+              conversation_id: convId,
+              confidence: null,
+              model_used: defaultModel,
+            })}\n\n`
+          )
+        );
+
+        // Store assistant message
+        if (convId) {
+          await supabase.from('messages').insert({
+            conversation_id: convId,
+            role: 'assistant',
+            content: fullResponse,
+            sources,
+            model_used: defaultModel,
+            token_usage: {},
+          });
+        }
+
+        // Record usage event (#23)
+        recordUsageEvent({
+          agent_id,
+          event_type: 'chat',
+          metadata: {
+            model_used: defaultModel,
+            sources_count: sources.length,
+            query_enhanced: enhanced.reformulated !== enhanced.original,
+            is_follow_up: enhanced.isFollowUp,
+            conversation_id: convId,
+            ip: clientIp,
+          },
+        });
+
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+        controller.close();
+      } catch (streamError) {
+        // Fallback: try structured response if streaming fails
         try {
+          const queryEmbedding = await generateQueryEmbedding(message);
+          const { data: matchedChunks } = await supabase.rpc('hybrid_search', {
+            query_embedding: JSON.stringify(queryEmbedding),
+            query_text: message,
+            match_agent_id: agent_id,
+            match_count: 8,
+            semantic_weight: 0.7,
+            keyword_weight: 0.3,
+          });
+          const context: MatchedChunk[] = matchedChunks || [];
+
           const { structured, model_used } = await generateStructuredResponse(
             agent.name,
             agent.root_url,
@@ -277,16 +388,10 @@ export async function POST(request: NextRequest) {
             }
           );
 
-          fullResponse = structured.answer;
-
-          // Send the answer as text chunks
-          const chunkSize = 20;
-          for (let i = 0; i < structured.answer.length; i += chunkSize) {
-            const textChunk = structured.answer.slice(i, i + chunkSize);
-            controller.enqueue(
-              encoder.encode(`data: ${JSON.stringify({ type: 'text', content: textChunk })}\n\n`)
-            );
-          }
+          // Send full answer in one chunk
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify({ type: 'text', content: structured.answer })}\n\n`)
+          );
 
           // Build sources from structured citations
           const sources: SourceCitation[] = structured.citations.map((c) => ({
@@ -297,8 +402,14 @@ export async function POST(request: NextRequest) {
 
           // Fall back to chunk-based sources if no citations
           if (sources.length === 0) {
+            const pageIds = [...new Set(context.filter((c) => c.page_id).map((c) => c.page_id!))];
+            const { data: pages } = pageIds.length > 0
+              ? await supabase.from('pages').select('id, url, title').in('id', pageIds)
+              : { data: [] };
+            const fallbackPageMap = new Map((pages || []).map((p: { id: string; url: string; title: string | null }) => [p.id, p]));
+
             for (const chunk of context.slice(0, 5)) {
-              const page = chunk.page_id ? pageMap.get(chunk.page_id) : null;
+              const page = chunk.page_id ? fallbackPageMap.get(chunk.page_id) : null;
               if (page) {
                 sources.push({
                   url: page.url,
@@ -328,7 +439,7 @@ export async function POST(request: NextRequest) {
             await supabase.from('messages').insert({
               conversation_id: convId,
               role: 'assistant',
-              content: fullResponse,
+              content: structured.answer,
               sources,
               model_used,
               confidence: structured.confidence,
@@ -336,16 +447,13 @@ export async function POST(request: NextRequest) {
             });
           }
 
-          // Record usage event (#23)
           recordUsageEvent({
             agent_id,
             event_type: 'chat',
             metadata: {
               model_used,
               confidence: structured.confidence,
-              answered_from_sources_only: structured.answered_from_sources_only,
-              needs_recrawl: structured.needs_recrawl,
-              sources_count: sources.length,
+              fallback: true,
               conversation_id: convId,
               ip: clientIp,
             },
@@ -353,75 +461,23 @@ export async function POST(request: NextRequest) {
 
           controller.enqueue(encoder.encode('data: [DONE]\n\n'));
           controller.close();
-        } catch {
-          // Fall back to streaming
-          try {
-            const generator = streamChatResponse(
-              agent.name,
-              agent.root_url,
-              message,
-              context,
-              history,
-              {
-                systemPrompt: agentSettings?.system_prompt,
-                temperature: agentSettings?.temperature,
-                maxTokens: agentSettings?.max_tokens,
-              }
-            );
-
-            for await (const chunk of generator) {
-              fullResponse += chunk;
-              controller.enqueue(
-                encoder.encode(`data: ${JSON.stringify({ type: 'text', content: chunk })}\n\n`)
-              );
-            }
-
-            controller.enqueue(
-              encoder.encode(`data: ${JSON.stringify({ type: 'sources', sources: [], conversation_id: convId })}\n\n`)
-            );
-
-            if (convId) {
-              await supabase.from('messages').insert({
-                conversation_id: convId,
-                role: 'assistant',
-                content: fullResponse,
-                sources: [],
-                token_usage: {},
-              });
-            }
-
-            // Record usage event for fallback path
-            recordUsageEvent({
-              agent_id,
-              event_type: 'chat',
-              metadata: { fallback: true, conversation_id: convId, ip: clientIp },
-            });
-
-            controller.enqueue(encoder.encode('data: [DONE]\n\n'));
-            controller.close();
-          } catch (streamError) {
-            console.error('Chat stream error:', streamError);
-            controller.enqueue(
-              encoder.encode(`data: ${JSON.stringify({ type: 'error', content: 'An error occurred while generating the response.' })}\n\n`)
-            );
-            controller.close();
-          }
+        } catch (fallbackError) {
+          console.error('Chat fallback error:', fallbackError);
+          const errorMsg = streamError instanceof Error ? streamError.message : 'An error occurred while generating the response.';
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify({ type: 'error', content: errorMsg })}\n\n`)
+          );
+          controller.close();
         }
-      },
-    });
+      }
+    },
+  });
 
-    return new Response(stream, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        Connection: 'keep-alive',
-      },
-    });
-  } catch (error) {
-    console.error('Chat route error:', error);
-    return new Response(
-      JSON.stringify({ error: 'Internal error' }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } }
-    );
-  }
+  return new Response(stream, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+    },
+  });
 }

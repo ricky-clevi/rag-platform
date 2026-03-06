@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslations } from 'next-intl';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +16,7 @@ interface PasscodeGateProps {
 }
 
 export function PasscodeGate({ agentId, agentName, onVerified }: PasscodeGateProps) {
+  const t = useTranslations('chat');
   const [passcode, setPasscode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -24,7 +26,7 @@ export function PasscodeGate({ agentId, agentName, onVerified }: PasscodeGatePro
     setError('');
 
     if (!passcode.trim()) {
-      setError('Please enter a passcode');
+      setError(t('passcodeRequired'));
       return;
     }
 
@@ -42,11 +44,11 @@ export function PasscodeGate({ agentId, agentName, onVerified }: PasscodeGatePro
       if (data.valid) {
         onVerified();
       } else {
-        setError('Invalid passcode. Please try again.');
+        setError(t('passcodeInvalid'));
         setPasscode('');
       }
     } catch {
-      setError('Verification failed. Please try again.');
+      setError(t('passcodeFailed'));
     } finally {
       setLoading(false);
     }
@@ -61,7 +63,7 @@ export function PasscodeGate({ agentId, agentName, onVerified }: PasscodeGatePro
           </div>
           <CardTitle className="text-xl">{agentName}</CardTitle>
           <p className="text-sm text-muted-foreground">
-            This agent is passcode-protected. Enter the passcode to continue.
+            {t('passcodeTitle')}
           </p>
         </CardHeader>
         <form onSubmit={handleSubmit}>
@@ -73,13 +75,13 @@ export function PasscodeGate({ agentId, agentName, onVerified }: PasscodeGatePro
             )}
 
             <div className="space-y-2">
-              <Label htmlFor="passcode">Passcode</Label>
+              <Label htmlFor="passcode">{t('passcodeLabel')}</Label>
               <Input
                 id="passcode"
                 type="password"
                 value={passcode}
                 onChange={(e) => setPasscode(e.target.value)}
-                placeholder="Enter passcode"
+                placeholder={t('passcodePlaceholder')}
                 disabled={loading}
                 autoFocus
               />
@@ -91,7 +93,7 @@ export function PasscodeGate({ agentId, agentName, onVerified }: PasscodeGatePro
               ) : (
                 <ShieldCheck className="mr-2 h-4 w-4" />
               )}
-              Verify & Continue
+              {t('passcodeSubmit')}
             </Button>
           </CardContent>
         </form>
