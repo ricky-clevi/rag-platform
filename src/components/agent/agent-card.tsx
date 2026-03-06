@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
 import { Button } from '@/components/ui/button';
@@ -43,17 +44,43 @@ function AgentFavicon({ url, name }: { url: string; name: string }) {
 
 export function AgentCard({ agent, onDelete }: AgentCardProps) {
   const t = useTranslations('agents.card');
+  const router = useRouter();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+  const [deleted, setDeleted] = useState(false);
+
+  if (deleted) {
+    return null;
+  }
 
   const handleDelete = async () => {
     if (!confirmDelete) {
+      setDeleteError('');
       setConfirmDelete(true);
       return;
     }
+
     setDeleting(true);
-    await fetch(`/api/agents/${agent.id}`, { method: 'DELETE' });
-    onDelete?.(agent.id);
+    setDeleteError('');
+
+    try {
+      const response = await fetch(`/api/agents/${agent.id}`, { method: 'DELETE' });
+      const payload = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        setDeleteError(payload?.error || 'Delete failed. Please try again.');
+        setDeleting(false);
+        return;
+      }
+
+      setDeleted(true);
+      onDelete?.(agent.id);
+      router.refresh();
+    } catch {
+      setDeleteError('Delete failed. Please try again.');
+      setDeleting(false);
+    }
   };
 
   return (
@@ -116,6 +143,15 @@ export function AgentCard({ agent, onDelete }: AgentCardProps) {
       {confirmDelete && (
         <div className="mb-3 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-xs text-destructive">
           {t('confirmDelete', { name: agent.name })}
+        </div>
+      )}
+
+      {deleteError && (
+        <div
+          className="mb-3 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2.5 text-xs text-destructive"
+          aria-live="polite"
+        >
+          {deleteError}
         </div>
       )}
 

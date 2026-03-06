@@ -145,6 +145,8 @@ services:
       - ./supabase/migrations/001_initial_schema.sql:/docker-entrypoint-initdb.d/migrations/99-app-001-schema.sql:ro
       - ./supabase/migrations/002_feature_additions.sql:/docker-entrypoint-initdb.d/migrations/99-app-002-features.sql:ro
       - ./supabase/migrations/003_usage_event_types.sql:/docker-entrypoint-initdb.d/migrations/99-app-003-usage-event-types.sql:ro
+      - ./supabase/migrations/004_upgrade.sql:/docker-entrypoint-initdb.d/migrations/99-app-004-upgrade.sql:ro
+      - ./supabase/migrations/005_fix_chunks_fts_locale.sql:/docker-entrypoint-initdb.d/migrations/99-app-005-fts-fix.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U supabase_admin -h localhost"]
       interval: 5s

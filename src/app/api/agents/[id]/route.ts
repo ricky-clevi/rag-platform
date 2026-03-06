@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 import bcrypt from 'bcryptjs';
 import { recordAuditLog } from '@/lib/usage-logger';
 
@@ -165,17 +165,28 @@ export async function DELETE(
 ) {
   const { id } = await params;
   const supabase = await createClient();
+  const serviceClient = createServiceClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { error } = await supabase
+  const { data: existingAgent } = await supabase
+    .from('agents')
+    .select('id')
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .single();
+
+  if (!existingAgent) {
+    return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
+  }
+
+  const { error } = await serviceClient
     .from('agents')
     .delete()
-    .eq('id', id)
-    .eq('user_id', user.id);
+    .eq('id', id);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -183,9 +194,9 @@ export async function DELETE(
 
   recordAuditLog({
     user_id: user.id,
-    agent_id: id,
+    agent_id: null,
     action: 'agent_deleted',
-    details: {},
+    details: { deleted_agent_id: id },
   });
 
   return NextResponse.json({ success: true });
