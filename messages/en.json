@@ -125,7 +125,20 @@
       "estimatedTime": "Estimated Time",
       "crawlAllowed": "Crawling Allowed",
       "notReachable": "Website could not be reached",
-      "minutes": "minutes"
+      "minutes": "minutes",
+      "advanced": "Advanced Options",
+      "maxDepth": "Crawl Depth",
+      "maxDepthHint": "How many levels of links to follow (1=homepage only, 10=everything)",
+      "maxPages": "Max Pages",
+      "maxPagesHint": "Maximum number of pages to crawl",
+      "includePaths": "Include Only Paths (optional)",
+      "includePathsPlaceholder": "/docs/*, /blog/*",
+      "includePathsHint": "Only crawl URLs matching these patterns (comma-separated, glob supported)",
+      "excludePaths": "Exclude Paths (optional)",
+      "excludePathsPlaceholder": "/admin/*, /login, /signup",
+      "excludePathsHint": "Skip URLs matching these patterns (comma-separated)",
+      "showAdvanced": "Advanced crawl options",
+      "hideAdvanced": "Hide advanced options"
     },
     "status": {
       "draft": "Draft",

@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { root_url, name, description } = body;
+  const { root_url, name, description, max_depth, max_pages, include_paths, exclude_paths } = body;
 
   if (!root_url || !isValidUrl(root_url)) {
     return NextResponse.json({ error: 'Invalid URL' }, { status: 400 });
@@ -125,6 +125,10 @@ export async function POST(request: NextRequest) {
       user_id: user.id,
       crawl_job_id: crawlJob?.id || '',
       job_type: 'full',
+      max_depth: max_depth || 5,
+      max_pages: max_pages || 500,
+      include_paths: include_paths || [],
+      exclude_paths: exclude_paths || [],
     });
 
     // Audit log & usage event (#24)

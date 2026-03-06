@@ -125,7 +125,20 @@
       "estimatedTime": "예상 시간",
       "crawlAllowed": "크롤링 허용",
       "notReachable": "웹사이트에 접근할 수 없습니다",
-      "minutes": "분"
+      "minutes": "분",
+      "advanced": "고급 옵션",
+      "maxDepth": "크롤링 깊이",
+      "maxDepthHint": "링크를 몇 단계까지 따라갈지 설정 (1=홈페이지만, 10=전체)",
+      "maxPages": "최대 페이지 수",
+      "maxPagesHint": "크롤링할 최대 페이지 수",
+      "includePaths": "포함 경로 (선택사항)",
+      "includePathsPlaceholder": "/docs/*, /blog/*",
+      "includePathsHint": "이 패턴과 일치하는 URL만 크롤링 (쉼표로 구분, glob 지원)",
+      "excludePaths": "제외 경로 (선택사항)",
+      "excludePathsPlaceholder": "/admin/*, /login, /signup",
+      "excludePathsHint": "이 패턴과 일치하는 URL 건너뜀 (쉼표로 구분)",
+      "showAdvanced": "고급 크롤링 옵션",
+      "hideAdvanced": "고급 옵션 숨기기"
     },
     "status": {
       "draft": "초안",

@@ -3,11 +3,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Globe, FileText, AlertTriangle, Clock, CheckCircle2, Loader2 } from 'lucide-react';
+import { Globe, FileText, AlertTriangle, Clock, CheckCircle2, Loader2, Zap } from 'lucide-react';
 
 interface CrawlEvent {
   type: string;
@@ -35,11 +34,14 @@ export function CrawlProgress({ agentId, onComplete }: CrawlProgressProps) {
   const [errorMessage, setErrorMessage] = useState('');
   const [startTime] = useState(Date.now());
   const [now, setNow] = useState(Date.now());
+  const [currentUrl, setCurrentUrl] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const completedRef = useRef(false);
+  const crawledAtLastMinuteRef = useRef(0);
+  const pagesPerMinuteRef = useRef(0);
 
   // Tick every second for elapsed time / ETA display
   useEffect(() => {
@@ -56,6 +58,17 @@ export function CrawlProgress({ agentId, onComplete }: CrawlProgressProps) {
   const etaMinutes = Math.ceil(etaMs / 60000);
   const elapsedMinutes = Math.floor(elapsed / 60000);
   const elapsedSeconds = Math.floor((elapsed % 60000) / 1000);
+
+  // Pages per minute calculation — update every 10 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const elapsedMins = (Date.now() - startTime) / 60000;
+      if (elapsedMins > 0) {
+        pagesPerMinuteRef.current = Math.round(stats.crawled / elapsedMins);
+      }
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [startTime, stats.crawled]);
 
   const formatElapsed = useCallback(() => {
     if (elapsedMinutes > 0) {
@@ -88,6 +101,7 @@ export function CrawlProgress({ agentId, onComplete }: CrawlProgressProps) {
         errors: prev.errors,
       }));
       if (event.url) {
+        setCurrentUrl(event.url);
         setEvents((prev) => {
           const next = [...prev, event];
           // Keep at most 100 visible entries
@@ -225,68 +239,109 @@ export function CrawlProgress({ agentId, onComplete }: CrawlProgressProps) {
           ? Math.min(Math.round((stats.crawled / stats.discovered) * 100), 95)
           : 10;
 
+  // Pages per minute — live calculation
+  const elapsedMins = elapsed / 60000;
+  const pagesPerMinute = elapsedMins > 0.1 ? Math.round(stats.crawled / elapsedMins) : 0;
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          {status === 'connecting' && <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />}
-          {status === 'crawling' && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
-          {status === 'completed' && <CheckCircle2 className="h-5 w-5 text-green-500" />}
-          {status === 'failed' && <AlertTriangle className="h-5 w-5 text-destructive" />}
-          <span>
-            {status === 'connecting' && t('crawl.connecting')}
-            {status === 'crawling' && t('crawl.crawling')}
-            {status === 'completed' && t('crawl.completed')}
-            {status === 'failed' && t('crawl.failed')}
-          </span>
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            {status === 'connecting' && <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />}
+            {status === 'crawling' && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
+            {status === 'completed' && <CheckCircle2 className="h-5 w-5 text-green-500" />}
+            {status === 'failed' && <AlertTriangle className="h-5 w-5 text-destructive" />}
+            <span>
+              {status === 'connecting' && t('crawl.connecting')}
+              {status === 'crawling' && t('crawl.crawling')}
+              {status === 'completed' && t('crawl.completed')}
+              {status === 'failed' && t('crawl.failed')}
+            </span>
+          </CardTitle>
+          {status === 'crawling' && pagesPerMinute > 0 && (
+            <Badge variant="secondary" className="flex items-center gap-1">
+              <Zap className="h-3 w-3" />
+              {pagesPerMinute} pg/min
+            </Badge>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Progress bar */}
-        <div className="space-y-2">
+        {/* Modern animated progress bar */}
+        <div className="space-y-1.5">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">
-              {progressValue}%
-            </span>
+            <span className="text-muted-foreground font-medium">{progressValue}%</span>
             {status === 'crawling' && etaMs > 0 && (
-              <span className="flex items-center gap-1 text-muted-foreground">
+              <span className="flex items-center gap-1 text-muted-foreground text-xs">
                 <Clock className="h-3.5 w-3.5" />
-                {t('crawl.eta')}: ~{etaMinutes} {t('crawl.eta') && etaMinutes === 1 ? 'min' : 'mins'}
+                {t('crawl.eta')}: ~{etaMinutes} {etaMinutes === 1 ? 'min' : 'mins'}
               </span>
             )}
           </div>
-          <Progress value={progressValue} />
+          <div className="relative h-2 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ease-out ${
+                status === 'completed'
+                  ? 'bg-green-500'
+                  : status === 'failed'
+                    ? 'bg-destructive'
+                    : 'bg-primary'
+              }`}
+              style={{ width: `${progressValue}%` }}
+            >
+              {status === 'crawling' && (
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-[shimmer_1.5s_infinite]" />
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* Stats row */}
-        <div className="grid grid-cols-2 gap-4 text-sm sm:grid-cols-4">
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Globe className="h-4 w-4 shrink-0" />
-            <div>
-              <div className="font-medium text-foreground">{stats.crawled}</div>
-              <div className="text-xs">{t('crawl.pagesFound')}</div>
+        {/* Live current URL */}
+        {status === 'crawling' && currentUrl && (
+          <div className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2">
+            <span className="relative flex h-2 w-2 shrink-0">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
+            </span>
+            <span className="text-xs text-muted-foreground truncate">{currentUrl}</span>
+          </div>
+        )}
+
+        {/* Stat cards */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="rounded-lg border bg-card p-3 space-y-1">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Globe className="h-3.5 w-3.5" />
+              {t('crawl.pagesFound')}
+            </div>
+            <div className="text-xl font-bold tabular-nums">{stats.crawled}</div>
+            {stats.discovered > 0 && (
+              <div className="text-xs text-muted-foreground">of {stats.discovered}</div>
+            )}
+          </div>
+          <div className="rounded-lg border bg-card p-3 space-y-1">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <FileText className="h-3.5 w-3.5" />
+              {t('crawl.chunksCreated')}
+            </div>
+            <div className="text-xl font-bold tabular-nums">{stats.chunks}</div>
+          </div>
+          <div className="rounded-lg border bg-card p-3 space-y-1">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              {t('crawl.errors')}
+            </div>
+            <div className={`text-xl font-bold tabular-nums ${stats.errors > 0 ? 'text-destructive' : ''}`}>
+              {stats.errors}
             </div>
           </div>
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <FileText className="h-4 w-4 shrink-0" />
-            <div>
-              <div className="font-medium text-foreground">{stats.chunks}</div>
-              <div className="text-xs">{t('crawl.chunksCreated')}</div>
+          <div className="rounded-lg border bg-card p-3 space-y-1">
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Clock className="h-3.5 w-3.5" />
+              {t('crawl.elapsed')}
             </div>
-          </div>
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <AlertTriangle className="h-4 w-4 shrink-0" />
-            <div>
-              <div className="font-medium text-foreground">{stats.errors}</div>
-              <div className="text-xs">{t('crawl.errors')}</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Clock className="h-4 w-4 shrink-0" />
-            <div>
-              <div className="font-medium text-foreground">{formatElapsed()}</div>
-              <div className="text-xs">{t('crawl.elapsed')}</div>
-            </div>
+            <div className="text-xl font-bold tabular-nums">{formatElapsed()}</div>
           </div>
         </div>
 
@@ -294,10 +349,6 @@ export function CrawlProgress({ agentId, onComplete }: CrawlProgressProps) {
         {events.length > 0 && (
           <div className="space-y-1.5">
             <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-              {status === 'crawling' && <span className="relative flex h-2 w-2">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-75" />
-                <span className="relative inline-flex h-2 w-2 rounded-full bg-primary" />
-              </span>}
               {t('crawl.currentlyCrawling')}
             </div>
             <ScrollArea className="h-48 rounded-md border bg-muted/30 p-2">

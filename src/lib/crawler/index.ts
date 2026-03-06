@@ -55,6 +55,14 @@ export interface CrawlOptions {
   jobType?: 'full' | 'incremental' | 'single_page';
   /** Approved additional domains/subdomains for crawling scope */
   allowedDomains?: string[];
+  /** Maximum depth of links to follow (1 = homepage only, 10 = everything) */
+  max_depth?: number;
+  /** Maximum number of pages to crawl */
+  max_pages?: number;
+  /** Only crawl URLs matching these path patterns (glob supported) */
+  include_paths?: string[];
+  /** Skip URLs matching these path patterns (glob supported) */
+  exclude_paths?: string[];
 }
 
 const USER_AGENT = 'AgentForgeBot';
@@ -258,6 +266,26 @@ async function detectSpa(startUrl: string): Promise<boolean> {
   }
 }
 
+/**
+ * Test whether a URL's pathname matches any of the given glob-style patterns.
+ * If patterns is empty, every URL matches (no restriction).
+ */
+function matchesPathPatterns(url: string, patterns: string[]): boolean {
+  if (!patterns || patterns.length === 0) return true;
+  try {
+    const urlPath = new URL(url).pathname;
+    return patterns.some(pattern => {
+      const regexPattern = pattern
+        .replace(/\*/g, '.*')
+        .replace(/\?/g, '.')
+        .replace(/\//g, '\\/');
+      return new RegExp(`^${regexPattern}`).test(urlPath);
+    });
+  } catch {
+    return false;
+  }
+}
+
 export async function crawlWebsite(
   startUrl: string,
   callbacks: CrawlCallbacks,
@@ -266,15 +294,18 @@ export async function crawlWebsite(
   const normalizedStart = normalizeUrl(startUrl);
   const visited = new Set<string>();
   const queued = new Set<string>([normalizedStart]);
-  const queue: string[] = [normalizedStart];
+  const queue: Array<{ url: string; depth: number }> = [{ url: normalizedStart, depth: 0 }];
   let totalChunks = 0;
   let errors = 0;
   let skipped = 0;
   const skippedPages: SkippedPage[] = [];
 
   const DELAY_MS = 500;
-  const MAX_PAGES = 5000;
+  const maxDepth = options.max_depth ?? 5;
+  const MAX_PAGES = options.max_pages || 5000;
   const allowedDomains = options.allowedDomains || [];
+  const includePaths = options.include_paths || [];
+  const excludePaths = options.exclude_paths || [];
 
   // Concurrency limiters
   const httpLimit = pLimit(5);
@@ -295,12 +326,17 @@ export async function crawlWebsite(
   const sitemapUrls = await discoverSitemapUrls(normalizedStart, robotsRawText);
   for (const sitemapUrl of sitemapUrls) {
     const normalized = normalizeUrl(sitemapUrl);
+    const inInclude = !includePaths.length || matchesPathPatterns(normalized, includePaths);
+    const notExcluded = !excludePaths.length || !matchesPathPatterns(normalized, excludePaths);
     if (
       !queued.has(normalized) &&
+      inInclude &&
+      notExcluded &&
       isInDomainScope(normalized, normalizedStart, allowedDomains) &&
       !shouldSkipUrl(normalized, { allowPdf: true })
     ) {
-      queue.push(normalized);
+      // Sitemap URLs are treated as depth 0 (they may be anywhere in the site)
+      queue.push({ url: normalized, depth: 0 });
       queued.add(normalized);
     }
   }
@@ -312,7 +348,7 @@ export async function crawlWebsite(
   // Track crawled count for progress
   let crawledCount = 0;
 
-  async function processUrl(url: string): Promise<void> {
+  async function processUrl(url: string, currentDepth: number): Promise<void> {
     const isPdf = isPdfUrl(url);
 
     try {
@@ -400,19 +436,25 @@ export async function crawlWebsite(
         await callbacks.onPageCrawled(result);
 
         // Discover new URLs from links (#6 -- domain-aware)
-        for (const link of content.links) {
-          if (queued.size >= MAX_PAGES) break;
-          const normalizedLink = normalizeUrl(link);
-          if (
-            !queued.has(normalizedLink) &&
-            isInDomainScope(normalizedLink, normalizedStart, allowedDomains) &&
-            !shouldSkipUrl(normalizedLink, { allowPdf: true })
-          ) {
-            if (robots && !robots.isAllowed(normalizedLink, USER_AGENT)) {
-              continue;
+        if (currentDepth < maxDepth) {
+          for (const link of content.links) {
+            if (queued.size >= MAX_PAGES) break;
+            const normalizedLink = normalizeUrl(link);
+            const inInclude = !includePaths.length || matchesPathPatterns(normalizedLink, includePaths);
+            const notExcluded = !excludePaths.length || !matchesPathPatterns(normalizedLink, excludePaths);
+            if (
+              inInclude &&
+              notExcluded &&
+              !queued.has(normalizedLink) &&
+              isInDomainScope(normalizedLink, normalizedStart, allowedDomains) &&
+              !shouldSkipUrl(normalizedLink, { allowPdf: true })
+            ) {
+              if (robots && !robots.isAllowed(normalizedLink, USER_AGENT)) {
+                continue;
+              }
+              queue.push({ url: normalizedLink, depth: currentDepth + 1 });
+              queued.add(normalizedLink);
             }
-            queue.push(normalizedLink);
-            queued.add(normalizedLink);
           }
         }
       }
@@ -433,7 +475,7 @@ export async function crawlWebsite(
     const batch = queue.splice(0, Math.min(queue.length, 10));
     const tasks: Promise<void>[] = [];
 
-    for (const url of batch) {
+    for (const { url, depth } of batch) {
       if (visited.has(url)) continue;
 
       const isPdf = isPdfUrl(url);
@@ -456,9 +498,9 @@ export async function crawlWebsite(
       visited.add(url);
 
       if (isPdf || isSpa) {
-        tasks.push(browserLimit(() => processUrl(url)));
+        tasks.push(browserLimit(() => processUrl(url, depth)));
       } else {
-        tasks.push(httpLimit(() => processUrl(url)));
+        tasks.push(httpLimit(() => processUrl(url, depth)));
       }
     }
 

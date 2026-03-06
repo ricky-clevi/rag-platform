@@ -35,7 +35,7 @@ function preprocessForEmbedding(content: string, agentName: string, pageTitle: s
 }
 
 async function processCrawlJob(job: Job<CrawlJobData>) {
-  const { agent_id, root_url, crawl_job_id, job_type, user_id } = job.data;
+  const { agent_id, root_url, crawl_job_id, job_type, user_id, max_depth, max_pages, include_paths, exclude_paths } = job.data;
   const supabase = createServiceClient();
 
   const startedAt = new Date().toISOString();
@@ -390,7 +390,7 @@ async function processCrawlJob(job: Job<CrawlJobData>) {
           }
         },
       },
-      { existingPages, jobType: job_type, allowedDomains }
+      { existingPages, jobType: job_type, allowedDomains, max_depth, max_pages, include_paths, exclude_paths }
     );
 
     const completedAt = new Date().toISOString();

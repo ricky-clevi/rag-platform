@@ -230,6 +230,10 @@ export interface CrawlJobData {
   user_id: string;
   crawl_job_id: string;
   job_type: 'full' | 'incremental' | 'single_page';
+  max_depth?: number;
+  max_pages?: number;
+  include_paths?: string[];
+  exclude_paths?: string[];
 }
 
 export interface CrawlProgress {

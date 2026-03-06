@@ -1,18 +1,17 @@
-import { useTranslations } from 'next-intl';
 import { Bot } from 'lucide-react';
 
 export function Footer() {
-  const t = useTranslations('common');
-
   return (
-    <footer className="border-t bg-muted/30">
-      <div className="container mx-auto flex h-16 items-center justify-between px-4">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Bot className="h-4 w-4" />
-          <span>{t('appName')}</span>
+    <footer className="border-t bg-background">
+      <div className="container mx-auto flex h-14 items-center justify-between px-4">
+        <div className="flex items-center gap-2">
+          <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary">
+            <Bot className="h-3.5 w-3.5 text-primary-foreground" />
+          </div>
+          <span className="text-sm font-semibold gradient-text">AgentForge</span>
         </div>
-        <p className="text-sm text-muted-foreground">
-          &copy; {new Date().getFullYear()} {t('appName')}
+        <p className="text-xs text-muted-foreground">
+          &copy; {new Date().getFullYear()} AgentForge. All rights reserved.
         </p>
       </div>
     </footer>

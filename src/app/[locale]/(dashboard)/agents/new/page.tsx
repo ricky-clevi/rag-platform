@@ -22,6 +22,8 @@ import {
   Search,
   Loader2,
   Monitor,
+  Settings2,
+  ChevronDown,
 } from 'lucide-react';
 
 interface CrawlPreview {
@@ -41,7 +43,6 @@ interface CrawlPreview {
 
 export default function NewAgentPage() {
   const t = useTranslations('agents.new');
-  const tCrawl = useTranslations('agents.crawl');
   const router = useRouter();
   const [url, setUrl] = useState('');
   const [name, setName] = useState('');
@@ -51,6 +52,11 @@ export default function NewAgentPage() {
   const [agentId, setAgentId] = useState<string | null>(null);
   const [preview, setPreview] = useState<CrawlPreview | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
+  const [maxDepth, setMaxDepth] = useState(5);
+  const [maxPages, setMaxPages] = useState(500);
+  const [includePaths, setIncludePaths] = useState('');
+  const [excludePaths, setExcludePaths] = useState('');
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   const handlePreview = async () => {
     if (!url) return;
@@ -101,6 +107,10 @@ export default function NewAgentPage() {
           root_url: targetUrl,
           name: name || undefined,
           description: description || undefined,
+          max_depth: maxDepth,
+          max_pages: maxPages,
+          include_paths: includePaths ? includePaths.split(',').map(p => p.trim()).filter(Boolean) : undefined,
+          exclude_paths: excludePaths ? excludePaths.split(',').map(p => p.trim()).filter(Boolean) : undefined,
         }),
       });
 
@@ -131,8 +141,14 @@ export default function NewAgentPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl">
-      <Card>
+    <div className="mx-auto max-w-2xl space-y-6">
+      {/* Page header */}
+      <div>
+        <h1 className="text-2xl font-bold">{t('title')}</h1>
+        <p className="text-muted-foreground">{t('subtitle')}</p>
+      </div>
+
+      <Card className="border-border/60 shadow-sm">
         <CardHeader>
           <CardTitle>{t('title')}</CardTitle>
           <CardDescription>{t('subtitle')}</CardDescription>
@@ -276,6 +292,91 @@ export default function NewAgentPage() {
                 placeholder={t('descriptionPlaceholder')}
                 disabled={loading}
               />
+            </div>
+
+            {/* Advanced Options Collapsible */}
+            <div className="rounded-xl border border-dashed border-border">
+              <button
+                type="button"
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <Settings2 className="h-4 w-4" />
+                  {showAdvanced ? t('hideAdvanced') : t('showAdvanced')}
+                </div>
+                <ChevronDown className={`h-4 w-4 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} />
+              </button>
+
+              {showAdvanced && (
+                <div className="border-t px-4 pb-4 space-y-4 pt-4">
+                  {/* Max Depth Slider */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label>{t('maxDepth')}</Label>
+                      <span className="text-sm font-medium text-primary">{maxDepth}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={1}
+                      max={10}
+                      value={maxDepth}
+                      onChange={(e) => setMaxDepth(parseInt(e.target.value))}
+                      className="w-full h-2 bg-muted rounded-full appearance-none cursor-pointer accent-primary"
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>1 (homepage only)</span>
+                      <span>10 (deep crawl)</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">{t('maxDepthHint')}</p>
+                  </div>
+
+                  {/* Max Pages Slider */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label>{t('maxPages')}</Label>
+                      <span className="text-sm font-medium text-primary">{maxPages.toLocaleString()}</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={50}
+                      max={5000}
+                      step={50}
+                      value={maxPages}
+                      onChange={(e) => setMaxPages(parseInt(e.target.value))}
+                      className="w-full h-2 bg-muted rounded-full appearance-none cursor-pointer accent-primary"
+                    />
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>50</span>
+                      <span>5,000</span>
+                    </div>
+                  </div>
+
+                  {/* Include Paths */}
+                  <div className="space-y-2">
+                    <Label>{t('includePaths')}</Label>
+                    <Input
+                      value={includePaths}
+                      onChange={(e) => setIncludePaths(e.target.value)}
+                      placeholder={t('includePathsPlaceholder')}
+                      disabled={loading}
+                    />
+                    <p className="text-xs text-muted-foreground">{t('includePathsHint')}</p>
+                  </div>
+
+                  {/* Exclude Paths */}
+                  <div className="space-y-2">
+                    <Label>{t('excludePaths')}</Label>
+                    <Input
+                      value={excludePaths}
+                      onChange={(e) => setExcludePaths(e.target.value)}
+                      placeholder={t('excludePathsPlaceholder')}
+                      disabled={loading}
+                    />
+                    <p className="text-xs text-muted-foreground">{t('excludePathsHint')}</p>
+                  </div>
+                </div>
+              )}
             </div>
 
             <Button type="submit" className="w-full" disabled={loading || !url}>
