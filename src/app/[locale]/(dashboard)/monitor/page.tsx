@@ -41,9 +41,16 @@ export default function MonitorPage() {
     let active = true;
 
     async function fetchAgents() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!active || !user) {
+        setLoading(false);
+        return;
+      }
+
       const { data } = await supabase
         .from('agents')
         .select('*')
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (!active) return;

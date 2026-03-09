@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
 import { Link, useRouter, usePathname } from '@/i18n/navigation';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,7 @@ import {
   X,
   ArrowRight,
 } from 'lucide-react';
+import { LogoIcon } from '@/components/common/logo-icon';
 import { createClient } from '@/lib/supabase/client';
 import type { User } from '@supabase/supabase-js';
 
@@ -26,6 +27,7 @@ export function Header() {
   const pathname = usePathname();
   const [user, setUser] = useState<User | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
   const supabase = useMemo(() => createClient(), []);
 
   useEffect(() => {
@@ -38,8 +40,17 @@ export function Header() {
     await supabase.auth.signOut();
     setUser(null);
     setMobileMenuOpen(false);
+    setShowSignOutConfirm(false);
     router.push('/');
   };
+
+  const requestSignOut = useCallback(() => {
+    setShowSignOutConfirm(true);
+  }, []);
+
+  const cancelSignOut = useCallback(() => {
+    setShowSignOutConfirm(false);
+  }, []);
 
   const isAuthPage = pathname === '/login' || pathname === '/signup';
   const isAppPage =
@@ -67,9 +78,7 @@ export function Header() {
     <header className="sticky top-0 z-50 w-full border-b border-border/80 bg-background/85 backdrop-blur-xl supports-[backdrop-filter]:bg-background/70">
       <div className="container mx-auto flex min-h-18 items-center justify-between gap-4 px-4 py-3">
         <Link href="/" className="flex items-center gap-3 font-semibold text-xl">
-          <div className="flex h-11 w-11 items-center justify-center rounded-[1.1rem] bg-primary text-primary-foreground shadow-sm">
-            <Bot className="h-5 w-5" />
-          </div>
+          <LogoIcon className="h-11 w-11 rounded-[1.1rem] shadow-sm" />
           <div className="min-w-0">
             <div className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
               {t('eyebrow')}
@@ -122,7 +131,7 @@ export function Header() {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={handleSignOut}
+                onClick={requestSignOut}
                 className="rounded-full px-4 text-muted-foreground hover:bg-accent hover:text-foreground"
               >
                 <LogOut className="h-4 w-4 mr-2" />
@@ -214,7 +223,7 @@ export function Header() {
                   variant="ghost"
                   size="default"
                   className="justify-start rounded-2xl"
-                  onClick={handleSignOut}
+                  onClick={requestSignOut}
                 >
                   <LogOut className="h-4 w-4 mr-2" />
                   {t('signOut')}
@@ -255,6 +264,37 @@ export function Header() {
               </>
             ) : null}
           </nav>
+        </div>
+      )}
+
+      {showSignOutConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+          <div className="w-full max-w-sm rounded-[1.6rem] border border-border/70 bg-background p-6 shadow-[0_20px_48px_rgba(31,37,32,0.12)] dark:shadow-[0_20px_48px_rgba(0,0,0,0.4)]">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-destructive/10 text-destructive">
+              <LogOut className="h-5 w-5" />
+            </div>
+            <h3 className="text-center text-lg font-semibold">{t('signOutConfirm')}</h3>
+            <p className="mt-2 text-center text-sm leading-6 text-muted-foreground">
+              {t('signOutDescription')}
+            </p>
+            <div className="mt-5 flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={cancelSignOut}
+              >
+                {t('signOutCancel')}
+              </Button>
+              <Button
+                variant="destructive"
+                className="flex-1"
+                onClick={handleSignOut}
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                {t('signOut')}
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </header>

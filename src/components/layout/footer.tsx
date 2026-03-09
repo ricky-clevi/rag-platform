@@ -1,8 +1,8 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
-import { Bot } from 'lucide-react';
 import { Link } from '@/i18n/navigation';
+import { LogoIcon } from '@/components/common/logo-icon';
 
 export function Footer() {
   const t = useTranslations('footer');
@@ -12,9 +12,7 @@ export function Footer() {
       <div className="container mx-auto flex flex-col gap-6 px-4 py-8 md:flex-row md:items-center md:justify-between">
         <div className="space-y-2">
           <Link href="/" className="flex items-center gap-3 font-semibold text-foreground">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
-              <Bot className="h-5 w-5" />
-            </div>
+            <LogoIcon className="h-10 w-10 rounded-2xl shadow-sm" />
             <div>
               <div className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
                 {t('eyebrow')}

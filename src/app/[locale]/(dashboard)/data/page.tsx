@@ -60,9 +60,13 @@ export default function DataPage() {
     let active = true;
 
     async function fetchAgents() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!active || !user) return;
+
       const { data } = await supabase
         .from('agents')
         .select('*')
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (!active) return;

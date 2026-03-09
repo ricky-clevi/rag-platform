@@ -3,7 +3,8 @@
 import type { ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
-import { Bot, ChevronRight, Database, Radar, ShieldCheck } from 'lucide-react';
+import { ChevronRight, Database, Radar, ShieldCheck } from 'lucide-react';
+import { LogoIcon } from '@/components/common/logo-icon';
 
 interface AuthShellProps {
   eyebrow: string;
@@ -48,9 +49,7 @@ export function AuthShell({
       <div className="container mx-auto px-4 py-6 md:py-10">
         <div className="mb-8 flex items-center justify-between gap-4">
           <Link href="/" className="flex items-center gap-3 font-semibold text-foreground">
-            <div className="flex h-11 w-11 items-center justify-center rounded-[1.1rem] bg-primary text-primary-foreground shadow-sm">
-              <Bot className="h-5 w-5" />
-            </div>
+            <LogoIcon className="h-11 w-11 rounded-[1.1rem] shadow-sm" />
             <div>
               <div className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
                 {nav('eyebrow')}

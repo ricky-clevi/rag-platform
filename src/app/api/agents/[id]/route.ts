@@ -10,11 +10,18 @@ export async function GET(
 ) {
   const { id } = await params;
   const supabase = await createClient();
+  const serviceClient = createServiceClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
-  const { data: agent, error } = await supabase
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { data: agent, error } = await serviceClient
     .from('agents')
     .select('*')
     .eq('id', id)
+    .eq('user_id', user.id)
     .single();
 
   if (error || !agent) {
@@ -22,20 +29,20 @@ export async function GET(
   }
 
   // Get agent settings
-  const { data: settings } = await supabase
+  const { data: settings } = await serviceClient
     .from('agent_settings')
     .select('*')
     .eq('agent_id', id)
     .single();
 
   // Get page count
-  const { count: pageCount } = await supabase
+  const { count: pageCount } = await serviceClient
     .from('pages')
     .select('*', { count: 'exact', head: true })
     .eq('agent_id', id);
 
   // Get chunk count
-  const { count: chunkCount } = await supabase
+  const { count: chunkCount } = await serviceClient
     .from('chunks')
     .select('*', { count: 'exact', head: true })
     .eq('agent_id', id);
@@ -57,13 +64,14 @@ export async function PATCH(
 ) {
   const { id } = await params;
   const supabase = await createClient();
+  const serviceClient = createServiceClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { data: existingAgent } = await supabase
+  const { data: existingAgent } = await serviceClient
     .from('agents')
     .select('id, visibility')
     .eq('id', id)
@@ -94,7 +102,7 @@ export async function PATCH(
       agentUpdates.passcode_hash = await bcrypt.hash(passcode.trim(), 10);
     } else {
       // Check if passcode hash already exists when enabling protection without providing new passcode
-      const { data: withHash } = await supabase
+      const { data: withHash } = await serviceClient
         .from('agents')
         .select('passcode_hash')
         .eq('id', id)
@@ -113,7 +121,7 @@ export async function PATCH(
   }
 
   if (Object.keys(agentUpdates).length > 0) {
-    const { error } = await supabase
+    const { error } = await serviceClient
       .from('agents')
       .update(agentUpdates)
       .eq('id', id)
@@ -135,7 +143,7 @@ export async function PATCH(
     if (settings.theme_color !== undefined) settingsUpdates.theme_color = settings.theme_color;
 
     if (Object.keys(settingsUpdates).length > 0) {
-      await supabase
+      await serviceClient
         .from('agent_settings')
         .update(settingsUpdates)
         .eq('agent_id', id);
@@ -143,13 +151,14 @@ export async function PATCH(
   }
 
   // Fetch updated agent
-  const { data: agent } = await supabase
+  const { data: agent } = await serviceClient
     .from('agents')
     .select('*')
     .eq('id', id)
+    .eq('user_id', user.id)
     .single();
 
-  const { data: updatedSettings } = await supabase
+  const { data: updatedSettings } = await serviceClient
     .from('agent_settings')
     .select('*')
     .eq('agent_id', id)
@@ -172,7 +181,7 @@ export async function DELETE(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { data: existingAgent } = await supabase
+  const { data: existingAgent } = await serviceClient
     .from('agents')
     .select('id')
     .eq('id', id)
