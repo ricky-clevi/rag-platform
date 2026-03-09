@@ -113,7 +113,7 @@ export default function MonitorPage() {
             id="monitor-agent"
             value={selectedAgentId}
             onChange={(event) => setSelectedAgentId(event.target.value)}
-            className="flex h-11 w-full rounded-2xl border border-input bg-white/72 px-4 text-sm outline-none transition-[border-color,box-shadow] focus:border-primary/40 focus:ring-4 focus:ring-primary/10 md:max-w-md"
+            className="flex h-11 w-full rounded-2xl border border-input bg-surface-glass px-4 text-sm outline-none transition-[border-color,box-shadow] focus:border-primary/40 focus:ring-4 focus:ring-primary/10 md:max-w-md"
           >
             {agents.map((agent) => (
               <option key={agent.id} value={agent.id}>
@@ -189,7 +189,7 @@ export default function MonitorPage() {
               payload.recentJobs.map((job) => (
                 <div
                   key={job.id}
-                  className="rounded-[1.3rem] border border-border/70 bg-white/72 p-4"
+                  className="rounded-[1.3rem] border border-border/70 bg-surface-glass p-4"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <Badge
@@ -228,7 +228,7 @@ export default function MonitorPage() {
         </CardHeader>
         <CardContent>
           {metrics?.failed_urls ? (
-            <div className="rounded-[1.3rem] border border-border/70 bg-white/72 p-4">
+            <div className="rounded-[1.3rem] border border-border/70 bg-surface-glass p-4">
               <div className="flex items-center gap-3">
                 <FileWarning className="h-5 w-5 text-destructive" />
                 <p className="text-sm font-medium text-foreground">

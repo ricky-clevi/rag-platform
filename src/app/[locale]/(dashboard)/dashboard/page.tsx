@@ -95,7 +95,7 @@ export default function DashboardPage() {
             {stats.map((item) => (
               <div
                 key={item.label}
-                className="rounded-[1.4rem] border border-border/70 bg-white/72 p-5"
+                className="rounded-[1.4rem] border border-border/70 bg-surface-glass p-5"
               >
                 <p className="text-sm text-muted-foreground">{item.label}</p>
                 <div className="mt-3 text-3xl font-semibold">

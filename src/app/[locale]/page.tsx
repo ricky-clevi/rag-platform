@@ -50,7 +50,7 @@ export default function LandingPage() {
           <div className="container relative mx-auto px-4 py-16 md:py-24">
             <div className="grid gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-center">
               <div className="space-y-7">
-                <Badge variant="outline" className="bg-white/70">
+                <Badge variant="outline" className="bg-surface-glass">
                   {t('hero.badge')}
                 </Badge>
                 <div className="space-y-5">
@@ -75,21 +75,21 @@ export default function LandingPage() {
                 <p className="text-sm leading-7 text-muted-foreground">{t('hero.footnote')}</p>
 
                 <div className="grid gap-3 sm:grid-cols-3">
-                  <div className="rounded-[1.5rem] border border-border/70 bg-white/75 p-5">
+                  <div className="rounded-[1.5rem] border border-border/70 bg-surface-glass p-5">
                     <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
                       {t('hero.metrics.metric1.label')}
                     </div>
                     <div className="mt-2 text-3xl font-semibold">{t('hero.metrics.metric1.value')}</div>
                     <p className="mt-2 text-sm leading-6 text-muted-foreground">{t('hero.metrics.metric1.copy')}</p>
                   </div>
-                  <div className="rounded-[1.5rem] border border-border/70 bg-white/75 p-5">
+                  <div className="rounded-[1.5rem] border border-border/70 bg-surface-glass p-5">
                     <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
                       {t('hero.metrics.metric2.label')}
                     </div>
                     <div className="mt-2 text-3xl font-semibold">{t('hero.metrics.metric2.value')}</div>
                     <p className="mt-2 text-sm leading-6 text-muted-foreground">{t('hero.metrics.metric2.copy')}</p>
                   </div>
-                  <div className="rounded-[1.5rem] border border-border/70 bg-white/75 p-5">
+                  <div className="rounded-[1.5rem] border border-border/70 bg-surface-glass p-5">
                     <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
                       {t('hero.metrics.metric3.label')}
                     </div>
@@ -101,7 +101,7 @@ export default function LandingPage() {
 
               <div className="glass-card panel-grid rounded-[2rem] p-5 md:p-7">
                 <div className="grid gap-4">
-                  <div className="rounded-[1.5rem] border border-border/70 bg-white/82 p-5">
+                  <div className="rounded-[1.5rem] border border-border/70 bg-surface-glass-strong p-5">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
@@ -150,7 +150,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section className="border-b border-border/70 bg-white/45">
+        <section className="border-b border-border/70 bg-surface-glass/60">
           <div className="container mx-auto px-4 py-16 md:py-20">
             <div className="grid gap-10 lg:grid-cols-[0.92fr_1.08fr]">
               <div className="space-y-4">
@@ -164,7 +164,7 @@ export default function LandingPage() {
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 {workflow.map((step, index) => (
-                  <article key={step.title} className="rounded-[1.6rem] border border-border/70 bg-white/75 p-5 shadow-[0_16px_38px_rgba(31,37,32,0.05)]">
+                  <article key={step.title} className="rounded-[1.6rem] border border-border/70 bg-surface-glass p-5 shadow-[0_16px_38px_rgba(31,37,32,0.05)] dark:shadow-[0_16px_38px_rgba(0,0,0,0.2)]">
                     <div className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">
                       {t('workflow.stepLabel', { value: String(index + 1).padStart(2, '0') })}
                     </div>
@@ -195,7 +195,7 @@ export default function LandingPage() {
               const Icon = capabilityIcons[index];
 
               return (
-                <article key={card.title} className="rounded-[1.7rem] border border-border/70 bg-white/75 p-6 shadow-[0_16px_36px_rgba(31,37,32,0.05)]">
+                <article key={card.title} className="rounded-[1.7rem] border border-border/70 bg-surface-glass p-6 shadow-[0_16px_36px_rgba(31,37,32,0.05)] dark:shadow-[0_16px_36px_rgba(0,0,0,0.2)]">
                   <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary text-secondary-foreground">
                     <Icon className="h-5 w-5" />
                   </div>
@@ -207,7 +207,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section id="examples" className="border-y border-border/70 bg-white/45">
+        <section id="examples" className="border-y border-border/70 bg-surface-glass/60">
           <div className="container mx-auto px-4 py-16 md:py-20">
             <div className="space-y-4">
               <span className="text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
@@ -224,8 +224,8 @@ export default function LandingPage() {
                 const Icon = exampleIcons[index];
 
                 return (
-                  <article key={card.title} className="rounded-[1.7rem] border border-border/70 bg-white/75 p-6 shadow-[0_16px_36px_rgba(31,37,32,0.05)]">
-                    <Badge variant="outline" className="bg-white/80">
+                  <article key={card.title} className="rounded-[1.7rem] border border-border/70 bg-surface-glass p-6 shadow-[0_16px_36px_rgba(31,37,32,0.05)] dark:shadow-[0_16px_36px_rgba(0,0,0,0.2)]">
+                    <Badge variant="outline" className="bg-surface-glass-strong">
                       {card.badge}
                     </Badge>
                     <div className="mt-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-secondary text-secondary-foreground">
@@ -255,10 +255,10 @@ export default function LandingPage() {
             {pricing.map((tier) => (
               <article
                 key={tier.name}
-                className={`rounded-[1.8rem] border p-6 shadow-[0_18px_40px_rgba(31,37,32,0.05)] ${
+                className={`rounded-[1.8rem] border p-6 shadow-[0_18px_40px_rgba(31,37,32,0.05)] dark:shadow-[0_18px_40px_rgba(0,0,0,0.2)] ${
                   tier.featured
                     ? 'border-primary/30 bg-[#194a3d] text-primary-foreground'
-                    : 'border-border/70 bg-white/75 text-foreground'
+                    : 'border-border/70 bg-surface-glass text-foreground'
                 }`}
               >
                 <div className="text-[11px] uppercase tracking-[0.22em] opacity-70">{tier.name}</div>

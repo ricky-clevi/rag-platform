@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { Link, useRouter, usePathname } from '@/i18n/navigation';
 import { Button } from '@/components/ui/button';
 import { LanguageSwitcher } from '@/components/common/language-switcher';
+import { ThemeSwitcher } from '@/components/common/theme-switcher';
 import {
   Bot,
   LogOut,
@@ -82,7 +83,7 @@ export function Header() {
             <a
               key={item.href}
               href={item.href}
-              className="rounded-full px-4 py-3 text-sm font-medium text-muted-foreground transition-[background-color,color] duration-200 hover:bg-white/70 hover:text-foreground"
+              className="rounded-full px-4 py-3 text-sm font-medium text-muted-foreground transition-[background-color,color] duration-200 hover:bg-accent hover:text-foreground"
             >
               {item.label}
             </a>
@@ -93,7 +94,7 @@ export function Header() {
               key={item.href}
               variant="ghost"
               size="sm"
-              className="rounded-full px-4 text-muted-foreground hover:bg-white/70 hover:text-foreground"
+              className="rounded-full px-4 text-muted-foreground hover:bg-accent hover:text-foreground"
               asChild
             >
               <Link href={item.href}>
@@ -105,6 +106,7 @@ export function Header() {
         </div>
 
         <div className="hidden md:flex items-center gap-3">
+          <ThemeSwitcher />
           <LanguageSwitcher />
 
           {user ? (
@@ -121,7 +123,7 @@ export function Header() {
                 variant="ghost"
                 size="sm"
                 onClick={handleSignOut}
-                className="rounded-full px-4 text-muted-foreground hover:bg-white/70 hover:text-foreground"
+                className="rounded-full px-4 text-muted-foreground hover:bg-accent hover:text-foreground"
               >
                 <LogOut className="h-4 w-4 mr-2" />
                 {t('signOut')}
@@ -132,7 +134,7 @@ export function Header() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="rounded-full px-4 text-muted-foreground hover:bg-white/70 hover:text-foreground"
+                className="rounded-full px-4 text-muted-foreground hover:bg-accent hover:text-foreground"
                 asChild
               >
                 <Link href="/login">{t('signIn')}</Link>
@@ -150,7 +152,7 @@ export function Header() {
         <Button
           variant="ghost"
           size="icon"
-          className="md:hidden rounded-full border border-transparent bg-white/40 hover:bg-white/80"
+          className="md:hidden rounded-full border border-transparent bg-secondary/50 hover:bg-accent"
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           aria-label={t('toggleMenu')}
           aria-expanded={mobileMenuOpen}
@@ -162,7 +164,10 @@ export function Header() {
       {mobileMenuOpen && (
         <div className="md:hidden border-t border-border/70 bg-background/95">
           <nav className="container mx-auto flex flex-col gap-3 px-4 py-4">
-            <LanguageSwitcher />
+            <div className="flex items-center gap-2">
+              <ThemeSwitcher />
+              <LanguageSwitcher />
+            </div>
 
             {user ? (
               <>
@@ -221,7 +226,7 @@ export function Header() {
                   <a
                     key={item.href}
                     href={item.href}
-                    className="rounded-2xl px-4 py-3 text-sm font-medium text-muted-foreground transition-[background-color,color] duration-200 hover:bg-white/80 hover:text-foreground"
+                    className="rounded-2xl px-4 py-3 text-sm font-medium text-muted-foreground transition-[background-color,color] duration-200 hover:bg-accent hover:text-foreground"
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     {item.label}

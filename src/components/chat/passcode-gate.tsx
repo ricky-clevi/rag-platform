@@ -56,7 +56,7 @@ export function PasscodeGate({ agentId, agentName, onVerified }: PasscodeGatePro
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
-      <Card className="w-full max-w-lg rounded-[2rem] border-border/70 bg-white/82 shadow-[0_20px_48px_rgba(31,37,32,0.08)]">
+      <Card className="w-full max-w-lg rounded-[2rem] border-border/70 bg-surface-glass-strong shadow-[0_20px_48px_rgba(31,37,32,0.08)] dark:shadow-[0_20px_48px_rgba(0,0,0,0.3)]">
         <CardHeader className="space-y-5 text-center">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-[1.5rem] bg-primary/10 text-primary">
             <Lock className="h-8 w-8" />
@@ -75,7 +75,7 @@ export function PasscodeGate({ agentId, agentName, onVerified }: PasscodeGatePro
               </div>
             ) : null}
 
-            <div className="rounded-[1.4rem] border border-border/70 bg-white/70 p-4 text-left text-sm leading-6 text-muted-foreground">
+            <div className="rounded-[1.4rem] border border-border/70 bg-surface-glass p-4 text-left text-sm leading-6 text-muted-foreground">
               <div className="flex items-center gap-2 font-medium text-foreground">
                 <ShieldCheck className="h-4 w-4 text-primary" />
                 {t('passcodeTrust')}

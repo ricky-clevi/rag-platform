@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -20,6 +22,10 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-surface-glass: var(--surface-glass);
+  --color-surface-glass-strong: var(--surface-glass-strong);
+  --color-sidebar-bg: var(--sidebar-bg);
+  --color-primary-hover: var(--primary-hover);
   --font-sans: var(--font-ui), "Noto Sans KR", sans-serif;
   --font-mono: var(--font-mono-ui), "IBM Plex Mono", monospace;
   --radius-sm: calc(var(--radius) - 6px);
@@ -38,6 +44,7 @@
   --popover-foreground: #171816;
   --primary: #174f49;
   --primary-foreground: #f8f5ef;
+  --primary-hover: #175645;
   --secondary: #dce8df;
   --secondary-foreground: #174f49;
   --muted: #ebe6dc;
@@ -49,30 +56,35 @@
   --border: rgba(23, 24, 22, 0.1);
   --input: rgba(23, 24, 22, 0.12);
   --ring: rgba(23, 79, 73, 0.24);
+  --surface-glass: rgba(255, 255, 255, 0.72);
+  --surface-glass-strong: rgba(255, 255, 255, 0.82);
+  --sidebar-bg: rgba(240, 235, 226, 0.7);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #171816;
-    --foreground: #f5f0e7;
-    --card: rgba(31, 35, 32, 0.92);
-    --card-foreground: #f5f0e7;
-    --popover: #1f2320;
-    --popover-foreground: #f5f0e7;
-    --primary: #79ab93;
-    --primary-foreground: #0d1b17;
-    --secondary: #24322c;
-    --secondary-foreground: #d5e8dd;
-    --muted: #202622;
-    --muted-foreground: #b0baaf;
-    --accent: #26352e;
-    --accent-foreground: #d9ebe0;
-    --destructive: #dd7867;
-    --destructive-foreground: #160807;
-    --border: rgba(245, 240, 231, 0.1);
-    --input: rgba(245, 240, 231, 0.12);
-    --ring: rgba(121, 171, 147, 0.3);
-  }
+.dark {
+  --background: #141916;
+  --foreground: #e8e4db;
+  --card: rgba(28, 34, 30, 0.88);
+  --card-foreground: #e8e4db;
+  --popover: #1a201d;
+  --popover-foreground: #e8e4db;
+  --primary: #6bab8e;
+  --primary-foreground: #0d1b17;
+  --primary-hover: #82c4a5;
+  --secondary: #1e2d26;
+  --secondary-foreground: #b8d8c6;
+  --muted: #1c2420;
+  --muted-foreground: #8a9489;
+  --accent: #1e2d26;
+  --accent-foreground: #b8d8c6;
+  --destructive: #dd7867;
+  --destructive-foreground: #160807;
+  --border: rgba(232, 228, 219, 0.1);
+  --input: rgba(232, 228, 219, 0.12);
+  --ring: rgba(107, 171, 142, 0.3);
+  --surface-glass: rgba(255, 255, 255, 0.05);
+  --surface-glass-strong: rgba(255, 255, 255, 0.08);
+  --sidebar-bg: rgba(18, 22, 19, 0.7);
 }
 
 html {
@@ -80,10 +92,8 @@ html {
   scroll-behavior: smooth;
 }
 
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
+html.dark {
+  color-scheme: dark;
 }
 
 body {
@@ -98,8 +108,20 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+.dark body {
+  background:
+    radial-gradient(circle at top left, rgba(107, 171, 142, 0.08), transparent 28%),
+    radial-gradient(circle at top right, rgba(180, 160, 120, 0.06), transparent 30%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent 18%),
+    var(--background);
+}
+
 body::selection {
   background: rgba(23, 79, 73, 0.18);
+}
+
+.dark body::selection {
+  background: rgba(107, 171, 142, 0.3);
 }
 
 * {
@@ -139,19 +161,27 @@ main {
   -webkit-backdrop-filter: blur(18px);
 }
 
+.dark .surface-card {
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.3);
+}
+
 .eyebrow {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
   border-radius: 999px;
   border: 1px solid rgba(23, 79, 73, 0.12);
-  background: rgba(255, 255, 255, 0.55);
+  background: var(--surface-glass);
   padding: 0.55rem 0.95rem;
   font-size: 0.72rem;
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--primary);
+}
+
+.dark .eyebrow {
+  border-color: rgba(107, 171, 142, 0.2);
 }
 
 .hero-gradient {
@@ -161,10 +191,22 @@ main {
   color: transparent;
 }
 
+.dark .hero-gradient {
+  background: linear-gradient(135deg, #6bab8e 0%, #82c4a5 55%, #d4b882 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
 .dashboard-shell {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.3), transparent 30%),
     radial-gradient(circle at top left, rgba(121, 171, 147, 0.1), transparent 30%);
+}
+
+.dark .dashboard-shell {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 30%),
+    radial-gradient(circle at top left, rgba(107, 171, 142, 0.04), transparent 30%);
 }
 
 .metric-grid {
@@ -176,6 +218,11 @@ main {
   background: linear-gradient(90deg, var(--muted) 25%, rgba(255, 255, 255, 0.8) 50%, var(--muted) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.4s linear infinite;
+}
+
+.dark .shimmer {
+  background: linear-gradient(90deg, var(--muted) 25%, rgba(255, 255, 255, 0.08) 50%, var(--muted) 75%);
+  background-size: 200% 100%;
 }
 
 @keyframes shimmer {
@@ -195,6 +242,10 @@ main {
 ::-webkit-scrollbar-thumb {
   border-radius: 999px;
   background: rgba(23, 79, 73, 0.24);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(107, 171, 142, 0.2);
 }
 
 ::-webkit-scrollbar-track {

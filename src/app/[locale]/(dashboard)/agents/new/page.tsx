@@ -145,7 +145,7 @@ export default function NewAgentPage() {
               className={`rounded-[1.3rem] border px-4 py-3 text-sm font-medium ${
                 index === stepIndex
                   ? 'border-primary bg-secondary text-secondary-foreground'
-                  : 'border-border/70 bg-white/70 text-muted-foreground'
+                  : 'border-border/70 bg-surface-glass text-muted-foreground'
               }`}
             >
               {t(`steps.${stepKey}`)}
@@ -311,7 +311,7 @@ export default function NewAgentPage() {
                 className={`rounded-[1.5rem] border p-5 text-left transition-colors ${
                   mode === option
                     ? 'border-primary bg-secondary text-secondary-foreground'
-                    : 'border-border/70 bg-white/70 text-foreground hover:bg-white'
+                    : 'border-border/70 bg-surface-glass text-foreground hover:bg-accent'
                 }`}
               >
                 <p className="text-lg font-semibold">{t(`modes.${option}.title`)}</p>
@@ -360,7 +360,7 @@ export default function NewAgentPage() {
 
 function Stat({ title, value }: { title: string; value: string }) {
   return (
-    <div className="rounded-[1.3rem] border border-border/70 bg-white/72 p-4">
+    <div className="rounded-[1.3rem] border border-border/70 bg-surface-glass p-4">
       <p className="text-sm text-muted-foreground">{title}</p>
       <div className="mt-2 text-2xl font-semibold">{value}</div>
     </div>
@@ -369,7 +369,7 @@ function Stat({ title, value }: { title: string; value: string }) {
 
 function Summary({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[1.3rem] border border-border/70 bg-white/72 p-4">
+    <div className="rounded-[1.3rem] border border-border/70 bg-surface-glass p-4">
       <p className="text-sm text-muted-foreground">{label}</p>
       <div className="mt-2 text-sm font-medium leading-6">{value}</div>
     </div>

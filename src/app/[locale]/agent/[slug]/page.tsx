@@ -20,7 +20,7 @@ function StateCard({
 }) {
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
-      <div className="w-full max-w-lg rounded-[2rem] border border-border/70 bg-white/82 p-10 text-center shadow-[0_20px_48px_rgba(31,37,32,0.08)]">
+      <div className="w-full max-w-lg rounded-[2rem] border border-border/70 bg-surface-glass-strong p-10 text-center shadow-[0_20px_48px_rgba(31,37,32,0.08)] dark:shadow-[0_20px_48px_rgba(0,0,0,0.3)]">
         <AlertCircle className="mx-auto mb-5 h-12 w-12 text-muted-foreground" />
         <h1 className="text-2xl font-semibold">{title}</h1>
         <p className="mt-3 text-sm leading-7 text-muted-foreground">{copy}</p>
@@ -34,8 +34,8 @@ function StateCard({
                 rel={action.external ? 'noreferrer' : undefined}
                 className={`inline-flex min-h-11 items-center rounded-full px-4 text-sm font-medium ${
                   action.external
-                    ? 'border border-border/70 bg-white text-muted-foreground transition-colors hover:text-foreground'
-                    : 'bg-primary text-primary-foreground transition-colors hover:bg-[#175645]'
+                    ? 'border border-border/70 bg-surface-glass text-muted-foreground transition-colors hover:text-foreground'
+                    : 'bg-primary text-primary-foreground transition-colors hover:bg-primary-hover'
                 }`}
               >
                 {action.label}
@@ -59,7 +59,7 @@ function PendingCard({
 }) {
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-4 py-10">
-      <div className="w-full max-w-lg rounded-[2rem] border border-border/70 bg-white/82 p-10 text-center shadow-[0_20px_48px_rgba(31,37,32,0.08)]">
+      <div className="w-full max-w-lg rounded-[2rem] border border-border/70 bg-surface-glass-strong p-10 text-center shadow-[0_20px_48px_rgba(31,37,32,0.08)] dark:shadow-[0_20px_48px_rgba(0,0,0,0.3)]">
         <Bot className="mx-auto mb-5 h-12 w-12 animate-pulse text-muted-foreground" />
         <h1 className="text-2xl font-semibold">{title}</h1>
         <p className="mt-3 text-sm leading-7 text-muted-foreground">{copy}</p>
@@ -73,8 +73,8 @@ function PendingCard({
                 rel={action.external ? 'noreferrer' : undefined}
                 className={`inline-flex min-h-11 items-center rounded-full px-4 text-sm font-medium ${
                   action.external
-                    ? 'border border-border/70 bg-white text-muted-foreground transition-colors hover:text-foreground'
-                    : 'bg-primary text-primary-foreground transition-colors hover:bg-[#175645]'
+                    ? 'border border-border/70 bg-surface-glass text-muted-foreground transition-colors hover:text-foreground'
+                    : 'bg-primary text-primary-foreground transition-colors hover:bg-primary-hover'
                 }`}
               >
                 {action.label}

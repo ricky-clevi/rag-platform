@@ -27,7 +27,7 @@ export function LanguageSwitcher() {
       variant="ghost"
       size="sm"
       onClick={handleSwitch}
-      className="h-11 rounded-full border border-transparent bg-white/40 px-4 text-xs uppercase tracking-[0.16em] text-muted-foreground hover:border-input hover:bg-white/80 hover:text-foreground"
+      className="h-11 rounded-full border border-transparent bg-secondary/50 px-4 text-xs uppercase tracking-[0.16em] text-muted-foreground hover:border-input hover:bg-accent hover:text-foreground"
       aria-label={`Switch language to ${nextLocale.toUpperCase()}`}
     >
       <Globe className="h-4 w-4" />

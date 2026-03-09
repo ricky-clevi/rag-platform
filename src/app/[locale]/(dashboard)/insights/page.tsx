@@ -130,7 +130,7 @@ export default function InsightsPage() {
             id="insights-agent"
             value={selectedAgentId}
             onChange={(event) => setSelectedAgentId(event.target.value)}
-            className="flex h-11 w-full rounded-2xl border border-input bg-white/72 px-4 text-sm outline-none transition-[border-color,box-shadow] focus:border-primary/40 focus:ring-4 focus:ring-primary/10 md:max-w-md"
+            className="flex h-11 w-full rounded-2xl border border-input bg-surface-glass px-4 text-sm outline-none transition-[border-color,box-shadow] focus:border-primary/40 focus:ring-4 focus:ring-primary/10 md:max-w-md"
           >
             {agents.map((agent) => (
               <option key={agent.id} value={agent.id}>
@@ -178,7 +178,7 @@ export default function InsightsPage() {
               analytics.recent_conversations.map((conversation) => (
                 <div
                   key={conversation.id}
-                  className="rounded-[1.3rem] border border-border/70 bg-white/72 p-4"
+                  className="rounded-[1.3rem] border border-border/70 bg-surface-glass p-4"
                 >
                   <p className="text-sm font-medium">
                     {conversation.title || t('conversations.untitled')}
@@ -206,7 +206,7 @@ export default function InsightsPage() {
               analytics.crawl_history.map((job) => (
                 <div
                   key={job.id}
-                  className="rounded-[1.3rem] border border-border/70 bg-white/72 p-4"
+                  className="rounded-[1.3rem] border border-border/70 bg-surface-glass p-4"
                 >
                   <p className="text-sm font-medium">{job.status}</p>
                   <p className="mt-2 text-xs text-muted-foreground">

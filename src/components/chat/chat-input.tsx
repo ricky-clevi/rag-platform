@@ -89,7 +89,7 @@ export function ChatInput({
           className={cn(
             'mb-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all duration-150',
             canSend
-              ? 'bg-primary text-primary-foreground shadow-sm hover:bg-[#175645] active:scale-95'
+              ? 'bg-primary text-primary-foreground shadow-sm hover:bg-primary-hover active:scale-95'
               : 'cursor-not-allowed bg-muted text-muted-foreground'
           )}
         >

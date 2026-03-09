@@ -211,7 +211,7 @@ export default function DataPage() {
             </Button>
 
             {mapResult ? (
-              <div className="space-y-4 rounded-[1.4rem] border border-border/70 bg-white/72 p-4">
+              <div className="space-y-4 rounded-[1.4rem] border border-border/70 bg-surface-glass p-4">
                 <div className="flex flex-wrap gap-2">
                   <Badge variant={mapResult.hasSitemap ? 'success' : 'outline'}>
                     {mapResult.hasSitemap ? t('map.sitemapFound') : t('map.noSitemap')}
@@ -269,7 +269,7 @@ export default function DataPage() {
             </Button>
 
             {crawlLaunch ? (
-              <div className="rounded-[1.4rem] border border-border/70 bg-white/72 p-4">
+              <div className="rounded-[1.4rem] border border-border/70 bg-surface-glass p-4">
                 <p className="text-sm font-semibold">{t('crawl.launchedTitle')}</p>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
                   {t('crawl.launchedCopy')}
@@ -331,7 +331,7 @@ export default function DataPage() {
                 searchResults.slice(0, 6).map((result) => (
                   <div
                     key={`${result.page_url}-${result.heading_path || result.content.slice(0, 24)}`}
-                    className="rounded-[1.3rem] border border-border/70 bg-white/72 p-4"
+                    className="rounded-[1.3rem] border border-border/70 bg-surface-glass p-4"
                   >
                     <p className="text-xs font-semibold text-primary">
                       {t('search.match', {
@@ -372,7 +372,7 @@ export default function DataPage() {
                 id="extract-prompt"
                 value={extractPrompt}
                 onChange={(event) => setExtractPrompt(event.target.value)}
-                className="min-h-40 w-full rounded-[1.5rem] border border-input bg-white/72 px-4 py-3 text-sm outline-none transition-[border-color,box-shadow] focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
+                className="min-h-40 w-full rounded-[1.5rem] border border-input bg-surface-glass px-4 py-3 text-sm outline-none transition-[border-color,box-shadow] focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
               />
             </div>
             <Button
@@ -384,7 +384,7 @@ export default function DataPage() {
             </Button>
 
             {extractResult ? (
-              <div className="space-y-4 rounded-[1.4rem] border border-border/70 bg-white/72 p-4">
+              <div className="space-y-4 rounded-[1.4rem] border border-border/70 bg-surface-glass p-4">
                 <p className="text-sm leading-7 text-foreground">
                   {extractResult.answer || t('extract.noSummary')}
                 </p>
@@ -427,7 +427,7 @@ function AgentSelect({
         id={id}
         value={selectedAgentId}
         onChange={(event) => onChange(event.target.value)}
-        className="flex h-11 w-full rounded-2xl border border-input bg-white/72 px-4 text-sm outline-none transition-[border-color,box-shadow] focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
+        className="flex h-11 w-full rounded-2xl border border-input bg-surface-glass px-4 text-sm outline-none transition-[border-color,box-shadow] focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
       >
         {agents.map((agent) => (
           <option key={agent.id} value={agent.id}>

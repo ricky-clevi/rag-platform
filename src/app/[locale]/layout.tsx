@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages } from 'next-intl/server';
 import { Manrope, IBM_Plex_Mono, Noto_Sans_KR } from 'next/font/google';
+import { ThemeProvider } from '@/components/common/theme-provider';
 import '../globals.css';
 
 const sans = Manrope({
@@ -28,7 +29,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#f6f3ee',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#f4f1ea' },
+    { media: '(prefers-color-scheme: dark)', color: '#141916' },
+  ],
 };
 
 export default async function LocaleLayout({
@@ -50,9 +54,11 @@ export default async function LocaleLayout({
         >
           Skip to content
         </a>
-        <NextIntlClientProvider messages={messages}>
-          {children}
-        </NextIntlClientProvider>
+        <ThemeProvider>
+          <NextIntlClientProvider messages={messages}>
+            {children}
+          </NextIntlClientProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

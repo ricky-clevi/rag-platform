@@ -66,7 +66,7 @@ export function ChatInterface({
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-[1.9rem] border border-border/70 bg-white/78 shadow-[0_20px_48px_rgba(31,37,32,0.08)]">
+    <div className="flex h-full flex-col overflow-hidden rounded-[1.9rem] border border-border/70 bg-surface-glass-strong shadow-[0_20px_48px_rgba(31,37,32,0.08)] dark:shadow-[0_20px_48px_rgba(0,0,0,0.3)]">
       <div className="border-b border-border/70 bg-background/92 px-4 py-4 backdrop-blur-sm sm:px-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
@@ -89,10 +89,10 @@ export function ChatInterface({
               {t('groundedCopy', { companyName })}
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
-              <Badge variant="outline" className="bg-white/90">
+              <Badge variant="outline" className="bg-surface-glass-strong">
                 {t('groundedLabel')}
               </Badge>
-              <Badge variant="outline" className="bg-white/90">
+              <Badge variant="outline" className="bg-surface-glass-strong">
                 <ShieldCheck className="mr-1 h-3 w-3" />
                 {t('sources')}
               </Badge>

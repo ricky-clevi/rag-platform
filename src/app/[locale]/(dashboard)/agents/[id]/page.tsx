@@ -354,7 +354,7 @@ export default function AgentDetailPage() {
         </div>
 
         {message ? (
-          <div className="mt-6 rounded-[1.3rem] border border-border/70 bg-white/72 px-4 py-3 text-sm text-foreground">
+          <div className="mt-6 rounded-[1.3rem] border border-border/70 bg-surface-glass px-4 py-3 text-sm text-foreground">
             {message}
           </div>
         ) : null}
@@ -442,7 +442,7 @@ export default function AgentDetailPage() {
                   onChange={(event) =>
                     setVisibility(event.target.value as 'public' | 'private' | 'passcode')
                   }
-                  className="flex h-11 w-full rounded-2xl border border-input bg-white/72 px-4 text-sm outline-none transition-[border-color,box-shadow] focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
+                  className="flex h-11 w-full rounded-2xl border border-input bg-surface-glass px-4 text-sm outline-none transition-[border-color,box-shadow] focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
                 >
                   <option value="public">{t('publish.visibilityOptions.public')}</option>
                   <option value="private">{t('publish.visibilityOptions.private')}</option>
@@ -454,7 +454,7 @@ export default function AgentDetailPage() {
               <textarea
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
-                className="min-h-28 w-full rounded-[1.5rem] border border-input bg-white/72 px-4 py-3 text-sm outline-none transition-[border-color,box-shadow] focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
+                className="min-h-28 w-full rounded-[1.5rem] border border-input bg-surface-glass px-4 py-3 text-sm outline-none transition-[border-color,box-shadow] focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
               />
             </Field>
             {visibility === 'passcode' ? (
@@ -467,7 +467,7 @@ export default function AgentDetailPage() {
                 />
               </Field>
             ) : null}
-            <div className="rounded-[1.3rem] border border-border/70 bg-white/72 p-4 text-sm text-muted-foreground">
+            <div className="rounded-[1.3rem] border border-border/70 bg-surface-glass p-4 text-sm text-muted-foreground">
               {shareUrl}
             </div>
           </div>
@@ -493,7 +493,7 @@ export default function AgentDetailPage() {
               <textarea
                 value={welcomeMessage}
                 onChange={(event) => setWelcomeMessage(event.target.value)}
-                className="min-h-28 w-full rounded-[1.5rem] border border-input bg-white/72 px-4 py-3 text-sm outline-none transition-[border-color,box-shadow] focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
+                className="min-h-28 w-full rounded-[1.5rem] border border-input bg-surface-glass px-4 py-3 text-sm outline-none transition-[border-color,box-shadow] focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
               />
             </Field>
             <div className="space-y-2">
@@ -501,7 +501,7 @@ export default function AgentDetailPage() {
               <div className="flex flex-wrap gap-2">
                 {settings?.starter_questions?.length ? (
                   settings.starter_questions.map((question) => (
-                    <Badge key={question} variant="outline" className="bg-white/80">
+                    <Badge key={question} variant="outline" className="bg-surface-glass-strong">
                       {question}
                     </Badge>
                   ))
@@ -551,7 +551,7 @@ export default function AgentDetailPage() {
                 domains.map((domain) => (
                   <div
                     key={domain.id}
-                    className="flex items-center justify-between rounded-[1.2rem] border border-border/70 bg-white/72 px-4 py-3 text-sm"
+                    className="flex items-center justify-between rounded-[1.2rem] border border-border/70 bg-surface-glass px-4 py-3 text-sm"
                   >
                     <span>{domain.domain}</span>
                     {domain.is_primary ? (
@@ -591,7 +591,7 @@ export default function AgentDetailPage() {
               <select
                 value={recrawlFrequency}
                 onChange={(event) => setRecrawlFrequency(event.target.value)}
-                className="flex h-11 w-full rounded-2xl border border-input bg-white/72 px-4 text-sm outline-none transition-[border-color,box-shadow] focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
+                className="flex h-11 w-full rounded-2xl border border-input bg-surface-glass px-4 text-sm outline-none transition-[border-color,box-shadow] focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
               >
                 <option value="24">24h</option>
                 <option value="72">72h</option>
@@ -600,12 +600,12 @@ export default function AgentDetailPage() {
               </select>
             </Field>
             <Field label={t('monitoring.nextRun')}>
-              <div className="rounded-[1.2rem] border border-border/70 bg-white/72 px-4 py-3 text-sm text-muted-foreground">
+              <div className="rounded-[1.2rem] border border-border/70 bg-surface-glass px-4 py-3 text-sm text-muted-foreground">
                 {policy?.next_run_at ? formatDate(policy.next_run_at) : t('monitoring.noNextRun')}
               </div>
             </Field>
             <Field label={t('monitoring.failures')}>
-              <div className="rounded-[1.2rem] border border-border/70 bg-white/72 px-4 py-3 text-sm text-muted-foreground">
+              <div className="rounded-[1.2rem] border border-border/70 bg-surface-glass px-4 py-3 text-sm text-muted-foreground">
                 {formatNumber(agent.crawl_stats?.errors || 0)}
               </div>
             </Field>
@@ -688,7 +688,7 @@ export default function AgentDetailPage() {
                 return (
                   <div
                     key={link.id}
-                    className="rounded-[1.3rem] border border-border/70 bg-white/72 p-4"
+                    className="rounded-[1.3rem] border border-border/70 bg-surface-glass p-4"
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div>
@@ -801,7 +801,7 @@ function DataLine({
   value: string;
 }) {
   return (
-    <div className="rounded-[1.2rem] border border-border/70 bg-white/72 px-4 py-3">
+    <div className="rounded-[1.2rem] border border-border/70 bg-surface-glass px-4 py-3">
       <p className="text-sm text-muted-foreground">{label}</p>
       <div className="mt-2 text-lg font-semibold">{value}</div>
     </div>

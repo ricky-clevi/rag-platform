@@ -92,7 +92,7 @@ export default function AgentsPage() {
           ))}
         </div>
       ) : agents.length === 0 ? (
-        <div className="flex flex-col items-center justify-center rounded-[2rem] border border-dashed bg-white/60 px-6 py-16 text-center">
+        <div className="flex flex-col items-center justify-center rounded-[2rem] border border-dashed bg-surface-glass px-6 py-16 text-center">
           <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-[1.5rem] bg-secondary text-secondary-foreground">
             <Bot className="h-8 w-8" />
           </div>
@@ -105,7 +105,7 @@ export default function AgentsPage() {
           </Button>
         </div>
       ) : filteredAgents.length === 0 ? (
-        <div className="rounded-[2rem] border border-dashed bg-white/60 px-6 py-14 text-center">
+        <div className="rounded-[2rem] border border-dashed bg-surface-glass px-6 py-14 text-center">
           <p className="text-base font-medium">{t('noMatches', { query })}</p>
           <button
             type="button"

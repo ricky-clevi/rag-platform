@@ -60,7 +60,7 @@ export function AuthShell({
           </Link>
           <Link
             href="/"
-            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-border/70 bg-white/70 px-4 text-sm font-medium text-muted-foreground transition-[background-color,color] hover:bg-white hover:text-foreground"
+            className="inline-flex min-h-11 items-center gap-2 rounded-full border border-border/70 bg-surface-glass px-4 text-sm font-medium text-muted-foreground transition-[background-color,color] hover:bg-accent hover:text-foreground"
           >
             {t('backHome')}
           </Link>
@@ -79,7 +79,7 @@ export function AuthShell({
                 </p>
               </div>
 
-              <div className="rounded-[1.6rem] border border-border/70 bg-white/80 p-5 shadow-[0_14px_34px_rgba(31,37,32,0.05)]">
+              <div className="rounded-[1.6rem] border border-border/70 bg-surface-glass-strong p-5 shadow-[0_14px_34px_rgba(31,37,32,0.05)] dark:shadow-[0_14px_34px_rgba(0,0,0,0.2)]">
                 <div className="text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
                   {t('continueTitle')}
                 </div>
@@ -102,7 +102,7 @@ export function AuthShell({
                 {proofCards.map((card) => (
                   <article
                     key={card.title}
-                    className="rounded-[1.5rem] border border-border/70 bg-white/72 p-5 shadow-[0_12px_30px_rgba(31,37,32,0.04)]"
+                    className="rounded-[1.5rem] border border-border/70 bg-surface-glass p-5 shadow-[0_12px_30px_rgba(31,37,32,0.04)] dark:shadow-[0_12px_30px_rgba(0,0,0,0.2)]"
                   >
                     <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-secondary text-secondary-foreground">
                       <card.icon className="h-5 w-5" />
@@ -115,7 +115,7 @@ export function AuthShell({
             </div>
           </section>
 
-          <section className="rounded-[2rem] border border-border/70 bg-white/78 p-4 shadow-[0_20px_48px_rgba(31,37,32,0.07)] md:p-6">
+          <section className="rounded-[2rem] border border-border/70 bg-surface-glass-strong p-4 shadow-[0_20px_48px_rgba(31,37,32,0.07)] dark:shadow-[0_20px_48px_rgba(0,0,0,0.25)] md:p-6">
             {children}
           </section>
         </div>

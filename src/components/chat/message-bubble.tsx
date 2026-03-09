@@ -64,7 +64,7 @@ export function MessageBubble({
         className={cn(
           'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-medium',
           isUser
-            ? 'bg-[#194a3d] text-white'
+            ? 'bg-primary text-primary-foreground'
             : 'border border-primary/20 bg-primary/10 text-primary'
         )}
       >
@@ -73,14 +73,14 @@ export function MessageBubble({
 
       <div className={cn('max-w-[88%] space-y-2', isUser && 'flex flex-col items-end')}>
         {!isUser && !isStreaming && isLowConfidence ? (
-          <div className="flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <div className="flex items-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/50 dark:text-amber-300">
             <AlertTriangle className="h-3 w-3 shrink-0" />
             <span>{t('lowConfidenceWarning')}</span>
           </div>
         ) : null}
 
         {!isUser && !isStreaming && usedGeneralKnowledge && !isLowConfidence ? (
-          <div className="flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+          <div className="flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800 dark:border-blue-800 dark:bg-blue-950/50 dark:text-blue-300">
             <AlertTriangle className="h-3 w-3 shrink-0" />
             <span>{t('generalKnowledgeWarning')}</span>
           </div>
