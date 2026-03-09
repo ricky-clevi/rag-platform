@@ -73,7 +73,7 @@ export function PublicAgentClient({
             <ThemeSwitcher />
             <LanguageSwitcher />
             <Link
-              href="/"
+              href="/dashboard"
               className="inline-flex min-h-11 items-center gap-2 rounded-full border border-border/70 bg-surface-glass px-4 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
               {t('backToPlatform')}
