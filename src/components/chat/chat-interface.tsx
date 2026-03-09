@@ -6,7 +6,8 @@ import { MessageBubble } from './message-bubble';
 import { ChatInput } from './chat-input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Bot, Globe, Plus, ShieldCheck } from 'lucide-react';
+import { Globe, Plus, ShieldCheck } from 'lucide-react';
+import { LogoIcon } from '@/components/common/logo-icon';
 import { useChat } from '@/hooks/use-chat';
 
 interface ChatInterfaceProps {
@@ -71,9 +72,7 @@ export function ChatInterface({
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
-                <Bot className="h-5 w-5" />
-              </div>
+              <LogoIcon className="h-11 w-11 shrink-0 rounded-2xl shadow-sm" />
               <div className="min-w-0">
                 <h2 className="truncate text-base font-semibold">{agentName}</h2>
                 <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
@@ -116,9 +115,7 @@ export function ChatInterface({
         <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
           {messages.length === 0 ? (
             <div className="flex min-h-[58vh] flex-col items-center justify-center py-16 text-center">
-              <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-[1.5rem] border border-primary/20 bg-primary/10 shadow-sm">
-                <Bot className="h-8 w-8 text-primary" />
-              </div>
+              <LogoIcon className="mb-5 h-16 w-16 rounded-[1.5rem] shadow-sm" />
               <h2 className="mb-2 text-2xl font-semibold tracking-tight">{agentName}</h2>
               <p className="mb-8 max-w-xl text-sm leading-7 text-muted-foreground">
                 {welcomeMessage || defaultWelcome}

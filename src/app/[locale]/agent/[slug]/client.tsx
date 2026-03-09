@@ -6,7 +6,10 @@ import { Link } from '@/i18n/navigation';
 import { ChatInterface } from '@/components/chat/chat-interface';
 import { PasscodeGate } from '@/components/chat/passcode-gate';
 import { Badge } from '@/components/ui/badge';
-import { Bot, ExternalLink, Globe } from 'lucide-react';
+import { ExternalLink, Globe } from 'lucide-react';
+import { LogoIcon } from '@/components/common/logo-icon';
+import { LanguageSwitcher } from '@/components/common/language-switcher';
+import { ThemeSwitcher } from '@/components/common/theme-switcher';
 import type { AgentVisibility } from '@/types';
 
 interface PublicAgentClientProps {
@@ -48,9 +51,7 @@ export function PublicAgentClient({
       <div className="container mx-auto px-4 py-6 md:py-8">
         <div className="mb-6 flex flex-col gap-4 rounded-[2rem] border border-border/70 bg-surface-glass-strong p-5 shadow-[0_20px_48px_rgba(31,37,32,0.07)] dark:shadow-[0_20px_48px_rgba(0,0,0,0.25)] sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-[1.2rem] bg-primary text-primary-foreground shadow-sm">
-              <Bot className="h-5 w-5" />
-            </div>
+            <LogoIcon className="h-12 w-12 rounded-[1.2rem] shadow-sm" />
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-lg font-semibold">{agent.name}</h1>
@@ -68,7 +69,9 @@ export function PublicAgentClient({
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <ThemeSwitcher />
+            <LanguageSwitcher />
             <Link
               href="/"
               className="inline-flex min-h-11 items-center gap-2 rounded-full border border-border/70 bg-surface-glass px-4 text-sm font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"

@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import {
-  Bot,
   User,
   AlertTriangle,
   ThumbsUp,
@@ -12,6 +11,7 @@ import {
   Check,
 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
+import { LogoIcon } from '@/components/common/logo-icon';
 import { CitationDrawer } from './citation-drawer';
 import { ConfidenceBadge } from './confidence-badge';
 import ReactMarkdown from 'react-markdown';
@@ -68,7 +68,7 @@ export function MessageBubble({
             : 'border border-primary/20 bg-primary/10 text-primary'
         )}
       >
-        {isUser ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+        {isUser ? <User className="h-4 w-4" /> : <LogoIcon className="h-5 w-5" />}
       </div>
 
       <div className={cn('max-w-[88%] space-y-2', isUser && 'flex flex-col items-end')}>
@@ -88,7 +88,7 @@ export function MessageBubble({
 
         <div
           className={cn(
-            'rounded-[1.5rem] px-4 py-3 text-sm leading-relaxed',
+            'overflow-hidden rounded-[1.5rem] px-4 py-3 text-sm leading-relaxed',
             isUser
               ? 'rounded-br-md bg-primary text-primary-foreground'
               : 'rounded-bl-md border border-border bg-card shadow-sm'
@@ -103,7 +103,7 @@ export function MessageBubble({
           ) : isUser ? (
             <span className="whitespace-pre-wrap">{content}</span>
           ) : (
-            <div className="[&>p]:my-2 [&>p]:leading-relaxed [&>h1]:my-3 [&>h1]:text-xl [&>h1]:font-bold [&>h2]:my-3 [&>h2]:text-lg [&>h2]:font-semibold [&>h3]:my-2 [&>h3]:text-base [&>h3]:font-semibold [&>ul]:my-2 [&>ul]:list-disc [&>ul]:pl-4 [&>ol]:my-2 [&>ol]:list-decimal [&>ol]:pl-4 [&>li]:my-0.5 [&>pre]:my-2 [&>pre]:overflow-x-auto [&>pre]:rounded-lg [&>pre]:border [&>pre]:border-border [&>pre]:bg-muted [&>pre]:p-3 [&_code]:rounded [&_code]:bg-primary/10 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_code]:font-mono [&>pre_code]:bg-transparent [&>pre_code]:p-0 [&>a]:text-primary [&>a]:underline [&>a]:underline-offset-2 [&>blockquote]:my-2 [&>blockquote]:border-l-2 [&>blockquote]:border-primary [&>blockquote]:pl-3 [&>blockquote]:italic [&>blockquote]:text-muted-foreground [&>table]:my-2 [&>table]:w-full [&>table]:border-collapse [&_th]:border [&_th]:border-border [&_th]:bg-muted [&_th]:px-3 [&_th]:py-1.5 [&_th]:text-left [&_th]:text-xs [&_th]:font-semibold [&_td]:border [&_td]:border-border [&_td]:px-3 [&_td]:py-1.5 [&_td]:text-xs [&>hr]:my-3 [&>hr]:border-border">
+            <div className="min-w-0 [&>p]:my-2 [&>p]:leading-relaxed [&>h1]:my-3 [&>h1]:text-xl [&>h1]:font-bold [&>h2]:my-3 [&>h2]:text-lg [&>h2]:font-semibold [&>h3]:my-2 [&>h3]:text-base [&>h3]:font-semibold [&>ul]:my-2 [&>ul]:list-disc [&>ul]:pl-4 [&>ol]:my-2 [&>ol]:list-decimal [&>ol]:pl-4 [&>li]:my-0.5 [&_pre]:my-2 [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:border [&_pre]:border-border [&_pre]:bg-muted [&_pre]:p-3 [&_code]:rounded [&_code]:bg-primary/10 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-xs [&_code]:font-mono [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&>a]:text-primary [&>a]:underline [&>a]:underline-offset-2 [&>blockquote]:my-2 [&>blockquote]:border-l-2 [&>blockquote]:border-primary [&>blockquote]:pl-3 [&>blockquote]:italic [&>blockquote]:text-muted-foreground [&_table]:my-2 [&_table]:w-full [&_table]:max-w-full [&_table]:border-collapse [&_table]:overflow-x-auto [&_th]:border [&_th]:border-border [&_th]:bg-muted [&_th]:px-3 [&_th]:py-1.5 [&_th]:text-left [&_th]:text-xs [&_th]:font-semibold [&_td]:border [&_td]:border-border [&_td]:px-3 [&_td]:py-1.5 [&_td]:text-xs [&>hr]:my-3 [&>hr]:border-border">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
               {isStreaming ? (
                 <span className="ml-0.5 inline-block h-4 w-0.5 animate-pulse bg-primary align-middle" />
