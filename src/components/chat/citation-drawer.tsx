@@ -46,11 +46,11 @@ export function CitationDrawer({ sources }: CitationDrawerProps) {
           <span>{t('sourcesCount', { count: sources.length })}</span>
           {!isOpen ? (
             <span className="ml-1.5 flex items-center gap-1">
-              {sources.slice(0, 4).map((source) => {
+              {sources.slice(0, 4).map((source, idx) => {
                 const faviconUrl = getFaviconUrl(source.url);
                 return faviconUrl ? (
                   <img
-                    key={source.url}
+                    key={`${source.url}-${idx}`}
                     src={faviconUrl}
                     alt=""
                     width={12}
