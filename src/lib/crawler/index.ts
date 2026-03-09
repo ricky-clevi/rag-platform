@@ -63,6 +63,8 @@ export interface CrawlOptions {
   include_paths?: string[];
   /** Skip URLs matching these path patterns (glob supported) */
   exclude_paths?: string[];
+  /** Ignore robots.txt restrictions (for sites that block bots but have public content) */
+  ignore_robots?: boolean;
 }
 
 const USER_AGENT = 'AgentForgeBot';
@@ -306,15 +308,20 @@ export async function crawlWebsite(
   const allowedDomains = options.allowedDomains || [];
   const includePaths = options.include_paths || [];
   const excludePaths = options.exclude_paths || [];
+  const ignoreRobots = options.ignore_robots || false;
 
   // Concurrency limiters
   const httpLimit = pLimit(5);
   const browserLimit = pLimit(2);
 
-  // Fetch and parse robots.txt
+  // Fetch and parse robots.txt (still fetch for sitemap discovery even when ignoring rules)
   const robotsResult = await fetchRobotsTxt(normalizedStart);
-  const robots = robotsResult?.parser || null;
+  const robots = ignoreRobots ? null : (robotsResult?.parser || null);
   const robotsRawText = robotsResult?.rawText || null;
+
+  if (ignoreRobots) {
+    console.log(`Ignoring robots.txt restrictions for ${normalizedStart}`);
+  }
 
   // Detect if the site is a SPA
   const isSpa = await detectSpa(normalizedStart);
@@ -350,6 +357,8 @@ export async function crawlWebsite(
 
   async function processUrl(url: string, currentDepth: number): Promise<void> {
     const isPdf = isPdfUrl(url);
+    // Collect discovered links OUTSIDE try/catch so link discovery always runs
+    let discoveredLinks: string[] = [];
 
     try {
       if (isPdf) {
@@ -381,9 +390,18 @@ export async function crawlWebsite(
             return;
           }
 
-          content = extracted;
+          if (extracted) {
+            // Always capture links for discovery, even if content is thin
+            discoveredLinks = extracted.links;
+
+            // If content is substantial enough, use the HTTP result
+            if (extracted.text.length >= 100) {
+              content = extracted;
+            }
+          }
         }
 
+        // Try browser crawler if HTTP content was too thin or unavailable
         if (!content) {
           const browserResult = await crawlPageBrowser(url);
           if (browserResult) {
@@ -395,66 +413,46 @@ export async function crawlWebsite(
               rawHtmlLength: browserResult.text.length,
               pageType: 'html' as const,
             };
+            // Merge browser-discovered links with HTTP-discovered links
+            if (browserResult.links.length > 0) {
+              const linkSet = new Set([...discoveredLinks, ...browserResult.links]);
+              discoveredLinks = [...linkSet];
+            }
           }
         }
 
-        if (!content || content.text.length < 50) {
-          return;
-        }
+        // Process content if we have enough text
+        if (content && content.text.length >= 50) {
+          // Content hashing for deduplication
+          const contentHash = computeContentHash(content.text);
+          if (existing?.contentHash && existing.contentHash === contentHash) {
+            skipped++;
+            skippedPages.push({ url, reason: 'content_unchanged', timestamp: new Date().toISOString() });
+            callbacks.onPageSkipped?.(url, 'content_unchanged');
+          } else {
+            // Chunk the content, filtering boilerplate (#12)
+            const rawChunks = chunkText(content.text, url, content.title);
+            const chunks = rawChunks.filter((c) => !isLikelyBoilerplate(c.content));
+            totalChunks += chunks.length;
 
-        // Content hashing for deduplication
-        const contentHash = computeContentHash(content.text);
-        if (existing?.contentHash && existing.contentHash === contentHash) {
-          skipped++;
-          skippedPages.push({ url, reason: 'content_unchanged', timestamp: new Date().toISOString() });
-          callbacks.onPageSkipped?.(url, 'content_unchanged');
-          return;
-        }
+            const result: CrawlResult = {
+              url,
+              canonicalUrl: content.canonical || null,
+              title: content.title,
+              content: content.text,
+              language: content.language || 'en',
+              chunks,
+              etag: content.etag,
+              lastModified: content.lastModified,
+              statusCode: content.statusCode,
+              rawHtmlLength: content.rawHtmlLength,
+              contentHash,
+              pageType: content.pageType,
+              robotsAllowed: true,
+              structuredData: content.structuredData,
+            };
 
-        // Chunk the content, filtering boilerplate (#12)
-        const rawChunks = chunkText(content.text, url, content.title);
-        const chunks = rawChunks.filter((c) => !isLikelyBoilerplate(c.content));
-        totalChunks += chunks.length;
-
-        const result: CrawlResult = {
-          url,
-          canonicalUrl: content.canonical || null,
-          title: content.title,
-          content: content.text,
-          language: content.language || 'en',
-          chunks,
-          etag: content.etag,
-          lastModified: content.lastModified,
-          statusCode: content.statusCode,
-          rawHtmlLength: content.rawHtmlLength,
-          contentHash,
-          pageType: content.pageType,
-          robotsAllowed: true,
-          structuredData: content.structuredData,
-        };
-
-        await callbacks.onPageCrawled(result);
-
-        // Discover new URLs from links (#6 -- domain-aware)
-        if (currentDepth < maxDepth) {
-          for (const link of content.links) {
-            if (queued.size >= MAX_PAGES) break;
-            const normalizedLink = normalizeUrl(link);
-            const inInclude = !includePaths.length || matchesPathPatterns(normalizedLink, includePaths);
-            const notExcluded = !excludePaths.length || !matchesPathPatterns(normalizedLink, excludePaths);
-            if (
-              inInclude &&
-              notExcluded &&
-              !queued.has(normalizedLink) &&
-              isInDomainScope(normalizedLink, normalizedStart, allowedDomains) &&
-              !shouldSkipUrl(normalizedLink, { allowPdf: true })
-            ) {
-              if (robots && !robots.isAllowed(normalizedLink, USER_AGENT)) {
-                continue;
-              }
-              queue.push({ url: normalizedLink, depth: currentDepth + 1 });
-              queued.add(normalizedLink);
-            }
+            await callbacks.onPageCrawled(result);
           }
         }
       }
@@ -464,6 +462,36 @@ export async function crawlWebsite(
         url,
         error instanceof Error ? error.message : 'Unknown error'
       );
+    }
+
+    // CRITICAL: Link discovery runs AFTER try/catch so that even if
+    // onPageCrawled throws (e.g. embedding/DB error), we still discover
+    // and queue links from this page for continued crawling.
+    if (!isPdf && currentDepth < maxDepth && discoveredLinks.length > 0) {
+      let added = 0;
+      for (const link of discoveredLinks) {
+        if (queued.size >= MAX_PAGES) break;
+        const normalizedLink = normalizeUrl(link);
+        const inInclude = !includePaths.length || matchesPathPatterns(normalizedLink, includePaths);
+        const notExcluded = !excludePaths.length || !matchesPathPatterns(normalizedLink, excludePaths);
+        if (
+          inInclude &&
+          notExcluded &&
+          !queued.has(normalizedLink) &&
+          isInDomainScope(normalizedLink, normalizedStart, allowedDomains) &&
+          !shouldSkipUrl(normalizedLink, { allowPdf: true })
+        ) {
+          if (robots && !robots.isAllowed(normalizedLink, USER_AGENT)) {
+            continue;
+          }
+          queue.push({ url: normalizedLink, depth: currentDepth + 1 });
+          queued.add(normalizedLink);
+          added++;
+        }
+      }
+      if (added > 0) {
+        console.log(`[crawl] Queued ${added} new URLs from ${url} (total queue: ${queued.size})`);
+      }
     }
 
     crawledCount++;

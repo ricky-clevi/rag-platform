@@ -36,6 +36,7 @@ export default function NewAgentPage() {
   const [maxPages, setMaxPages] = useState(500);
   const [includePaths, setIncludePaths] = useState('');
   const [excludePaths, setExcludePaths] = useState('');
+  const [ignoreRobots, setIgnoreRobots] = useState(false);
   const [mode, setMode] = useState<WorkspaceMode>('hybrid');
   const [preview, setPreview] = useState<CrawlPreview | null>(null);
   const [error, setError] = useState('');
@@ -70,6 +71,9 @@ export default function NewAgentPage() {
         if (!name) {
           setName(data.hostname);
         }
+        if (!data.crawlAllowed) {
+          setIgnoreRobots(true);
+        }
         setStep('preflight');
       })();
     });
@@ -96,6 +100,7 @@ export default function NewAgentPage() {
             exclude_paths: excludePaths
               ? excludePaths.split(',').map((value) => value.trim()).filter(Boolean)
               : undefined,
+            ignore_robots: ignoreRobots || undefined,
             mode,
           }),
         });
@@ -243,6 +248,22 @@ export default function NewAgentPage() {
               />
             </div>
             <div className="md:col-span-2">
+              <label className="flex items-start gap-3 rounded-[1.3rem] border border-border/70 bg-surface-glass p-4 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={ignoreRobots}
+                  onChange={(event) => setIgnoreRobots(event.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-border accent-primary"
+                />
+                <div>
+                  <p className="text-sm font-medium">{t('fields.ignoreRobots')}</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                    {t('fields.ignoreRobotsHint')}
+                  </p>
+                </div>
+              </label>
+            </div>
+            <div className="md:col-span-2">
               <Button onClick={runPreview} disabled={isPending || !url.trim()}>
                 {isPending ? t('actions.loading') : t('actions.preview')}
               </Button>
@@ -273,8 +294,12 @@ export default function NewAgentPage() {
               <Badge variant={preview.hasSitemap ? 'success' : 'outline'}>
                 {preview.hasSitemap ? t('preflight.sitemapFound') : t('preflight.noSitemap')}
               </Badge>
-              <Badge variant={preview.crawlAllowed ? 'success' : 'destructive'}>
-                {preview.crawlAllowed ? t('preflight.crawlAllowed') : t('preflight.crawlBlocked')}
+              <Badge variant={preview.crawlAllowed || ignoreRobots ? 'success' : 'destructive'}>
+                {preview.crawlAllowed
+                  ? t('preflight.crawlAllowed')
+                  : ignoreRobots
+                    ? t('preflight.robotsOverridden')
+                    : t('preflight.crawlBlocked')}
               </Badge>
             </div>
             <div className="max-h-56 space-y-2 overflow-auto pr-1">

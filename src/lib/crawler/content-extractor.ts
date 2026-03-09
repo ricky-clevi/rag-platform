@@ -278,29 +278,32 @@ export function extractContent(html: string, baseUrl: string): ExtractedContent 
   // Extract structured data
   const structuredData = extractStructuredData(html, baseUrl);
 
-  // Try Readability for main content extraction
-  let mainText = '';
+  // Try both Readability and cheerio, use whichever extracts more content.
+  // Some sites (esp. Korean government portals) have Readability-unfriendly
+  // layouts where cheerio extracts significantly more useful text.
+  let readabilityText = '';
   try {
     const doc = new JSDOM(html, { url: baseUrl });
     const reader = new Readability(doc.window.document);
     const article = reader.parse();
     if (article && article.textContent && article.textContent.trim().length > 100) {
-      // Readability returns plain text; clean it up
-      mainText = article.textContent
+      readabilityText = article.textContent
         .replace(/\n{3,}/g, '\n\n')
         .replace(/[ \t]+/g, ' ')
         .trim();
     }
   } catch {
-    // Readability failed, will fall back to cheerio
+    // Readability failed
   }
 
-  // Fall back to cheerio extraction if Readability didn't produce good content
-  if (!mainText || mainText.length < 100) {
-    // Re-load cheerio since extractLinks/extractContactInfo don't modify the DOM
-    const $fresh = cheerio.load(html);
-    mainText = cheerioExtract($fresh, baseUrl);
-  }
+  // Always try cheerio extraction as well
+  const $fresh = cheerio.load(html);
+  const cheerioText = cheerioExtract($fresh, baseUrl);
+
+  // Use whichever method produced more content
+  const useCherio = cheerioText.length > readabilityText.length * 1.5 && cheerioText.length > 200;
+  const mainText = useCherio ? cheerioText : (readabilityText || cheerioText);
+  console.log(`[extract] ${baseUrl}: readability=${readabilityText.length} cheerio=${cheerioText.length} using=${useCherio ? 'cheerio' : 'readability'} final=${mainText.length}`);
 
   // Prepend contact info if found
   const textParts: string[] = [];

@@ -281,7 +281,7 @@ export default function AgentDetailPage() {
       const response = await fetch('/api/crawl', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agent_id: agentId }),
+        body: JSON.stringify({ agent_id: agentId, ignore_robots: true }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {

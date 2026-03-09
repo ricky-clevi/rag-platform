@@ -13,11 +13,17 @@ export interface CrawlReadiness {
 
 /**
  * Verify crawl infrastructure availability.
- * - If Redis is reachable, uses BullMQ queue + embedded worker ('redis' mode).
- * - If Redis is unreachable, falls back to direct in-process execution ('direct' mode).
+ * - In development: always uses direct mode (avoids BullMQ stale code issues with HMR).
+ * - In production with Redis: uses BullMQ queue + embedded worker ('redis' mode).
+ * - In production without Redis: falls back to direct in-process execution ('direct' mode).
  * Always returns ready: true so crawls are never blocked.
  */
 export async function ensureCrawlReady(): Promise<CrawlReadiness> {
+  // In development, always use direct mode to ensure fresh code on every crawl
+  if (process.env.NODE_ENV !== 'production') {
+    return { ready: true, mode: 'direct' };
+  }
+
   const now = Date.now();
   if (lastCheckResult && now - lastCheckTime < CACHE_MS) {
     if (lastCheckResult === 'redis') {

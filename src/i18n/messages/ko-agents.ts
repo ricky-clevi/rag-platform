@@ -70,6 +70,9 @@ export const koAgentMessages = {
         maxPages: '최대 페이지 수',
         includePaths: '포함 경로',
         excludePaths: '제외 경로',
+        ignoreRobots: 'robots.txt 제한 무시',
+        ignoreRobotsHint:
+          '일부 웹사이트는 공개 콘텐츠임에도 robots.txt로 크롤러를 차단합니다. 이 옵션을 활성화하면 차단을 무시하고 크롤합니다. 접근 권한이 있는 사이트에만 사용하세요.',
         mode: '모드',
       },
       actions: {
@@ -89,6 +92,7 @@ export const koAgentMessages = {
         noSitemap: '사이트맵 없음',
         crawlAllowed: '크롤 허용',
         crawlBlocked: 'robots.txt 차단',
+        robotsOverridden: 'robots.txt 무시됨',
       },
       modes: {
         agent: {

@@ -122,17 +122,15 @@ export async function crawlPageHttp(
 
   const extracted = extractContent(result.html, url);
 
-  // If content is too minimal, return null so browser crawler can try
-  if (extracted.text.length < 100) {
-    return null;
-  }
-
+  // If content is too minimal, still return the result with links intact
+  // so the crawler can discover follow-up pages even from thin hub pages.
+  // Mark it as thin so the caller can decide whether to try browser crawling.
   return {
     ...extracted,
     etag: result.etag,
     lastModified: result.lastModified,
     statusCode: result.status,
     rawHtmlLength: result.html.length,
-    pageType: 'html',
+    pageType: 'html' as const,
   };
 }

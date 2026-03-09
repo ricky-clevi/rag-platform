@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { root_url, name, description, max_depth, max_pages, include_paths, exclude_paths } = body;
+  const { root_url, name, description, max_depth, max_pages, include_paths, exclude_paths, ignore_robots } = body;
 
   if (!root_url || !isValidUrl(root_url)) {
     return NextResponse.json({ error: 'Invalid URL' }, { status: 400 });
@@ -133,6 +133,7 @@ export async function POST(request: NextRequest) {
     max_pages: max_pages || 500,
     include_paths: include_paths || [],
     exclude_paths: exclude_paths || [],
+    ignore_robots: ignore_robots || false,
   };
 
   let jobId: string;

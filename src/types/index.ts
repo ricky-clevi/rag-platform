@@ -275,6 +275,7 @@ export interface CrawlJobData {
   max_pages?: number;
   include_paths?: string[];
   exclude_paths?: string[];
+  ignore_robots?: boolean;
 }
 
 export interface CrawlProgress {

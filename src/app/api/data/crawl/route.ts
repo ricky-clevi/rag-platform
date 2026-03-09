@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { agentId, jobType = 'full' } = await request.json();
+  const { agentId, jobType = 'full', ignore_robots } = await request.json();
   if (!agentId) {
     return NextResponse.json({ error: 'agentId is required' }, { status: 400 });
   }
@@ -47,6 +47,7 @@ export async function POST(request: NextRequest) {
     user_id: user.id,
     crawl_job_id: crawlJob?.id || '',
     job_type: jobType,
+    ignore_robots: ignore_robots || false,
   };
 
   let jobId: string;

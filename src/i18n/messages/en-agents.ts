@@ -70,6 +70,9 @@ export const enAgentMessages = {
         maxPages: 'Max pages',
         includePaths: 'Include paths',
         excludePaths: 'Exclude paths',
+        ignoreRobots: 'Ignore robots.txt restrictions',
+        ignoreRobotsHint:
+          'Some websites block crawlers via robots.txt even though their content is public. Enable this to crawl anyway. Only use for sites you have permission to access.',
         mode: 'Mode',
       },
       actions: {
@@ -89,6 +92,7 @@ export const enAgentMessages = {
         noSitemap: 'No sitemap',
         crawlAllowed: 'Crawl allowed',
         crawlBlocked: 'Blocked by robots',
+        robotsOverridden: 'Robots overridden',
       },
       modes: {
         agent: {

@@ -58,7 +58,8 @@ function preprocessForEmbedding(content: string, agentName: string, pageTitle: s
  * Can be called directly (without Redis) or from the BullMQ worker.
  */
 export async function executeCrawlJob(data: CrawlJobData) {
-  const { agent_id, root_url, crawl_job_id, job_type, user_id, max_depth, max_pages, include_paths, exclude_paths } = data;
+  const { agent_id, root_url, crawl_job_id, job_type, user_id, max_depth, max_pages, include_paths, exclude_paths, ignore_robots } = data;
+  console.log(`[crawl] Starting job for ${root_url} | ignore_robots=${ignore_robots} | max_depth=${max_depth} | max_pages=${max_pages}`);
   const supabase = createServiceClient();
 
   const startedAt = new Date().toISOString();
@@ -241,57 +242,62 @@ export async function executeCrawlJob(data: CrawlJobData) {
 
           // Generate embeddings for new/changed chunks using BATCH embedding
           if (newChunks.length > 0) {
-            const pageTitle = crawlResult.title || crawlResult.url;
+            try {
+              const pageTitle = crawlResult.title || crawlResult.url;
 
-            // Preprocess content for embedding (strip markdown, add context)
-            // Original content is preserved in the database insert below
-            const textsForEmbedding = newChunks.map((chunk) =>
-              preprocessForEmbedding(chunk.content, agentName, pageTitle)
-            );
-
-            // BATCH embed all new chunks at once (instead of one-at-a-time)
-            const { embeddings, failedIndices } =
-              await generateEmbeddingsBatch(textsForEmbedding);
-
-            const failedSet = new Set(failedIndices);
-
-            // BATCH insert all successful chunks (instead of one-at-a-time)
-            const chunksToInsert = newChunks
-              .map((chunk, idx) => {
-                if (failedSet.has(idx) || embeddings[idx].length === 0) return null;
-                return {
-                  agent_id,
-                  page_id: page.id,
-                  chunk_index: chunk.chunk_index,
-                  heading_path: chunk.heading_path,
-                  content: chunk.content, // Original content, NOT preprocessed
-                  snippet: chunk.snippet,
-                  language: crawlResult.language,
-                  token_count: chunk.token_count,
-                  rank_weight: 1.0,
-                  content_hash: chunk.hash,
-                  embedding: JSON.stringify(embeddings[idx]),
-                };
-              })
-              .filter((c): c is NonNullable<typeof c> => c !== null);
-
-            if (chunksToInsert.length > 0) {
-              // Batch insert — Supabase supports array insert
-              const { error: insertError } = await supabase.from('chunks').insert(chunksToInsert);
-              if (insertError) {
-                console.error(
-                  `Failed to insert ${chunksToInsert.length} chunks for ${crawlResult.url}: ${insertError.message}`
-                );
-                totalFailed++;
-              } else {
-                totalChunksProcessed += chunksToInsert.length;
-              }
-            }
-
-            if (failedIndices.length > 0) {
-              console.warn(
-                `${failedIndices.length} chunks failed to embed for ${crawlResult.url}`
+              // Preprocess content for embedding (strip markdown, add context)
+              // Original content is preserved in the database insert below
+              const textsForEmbedding = newChunks.map((chunk) =>
+                preprocessForEmbedding(chunk.content, agentName, pageTitle)
               );
+
+              // BATCH embed all new chunks at once (instead of one-at-a-time)
+              const { embeddings, failedIndices } =
+                await generateEmbeddingsBatch(textsForEmbedding);
+
+              const failedSet = new Set(failedIndices);
+
+              // BATCH insert all successful chunks (instead of one-at-a-time)
+              const chunksToInsert = newChunks
+                .map((chunk, idx) => {
+                  if (failedSet.has(idx) || embeddings[idx].length === 0) return null;
+                  return {
+                    agent_id,
+                    page_id: page.id,
+                    chunk_index: chunk.chunk_index,
+                    heading_path: chunk.heading_path,
+                    content: chunk.content, // Original content, NOT preprocessed
+                    snippet: chunk.snippet,
+                    language: crawlResult.language,
+                    token_count: chunk.token_count,
+                    rank_weight: 1.0,
+                    content_hash: chunk.hash,
+                    embedding: JSON.stringify(embeddings[idx]),
+                  };
+                })
+                .filter((c): c is NonNullable<typeof c> => c !== null);
+
+              if (chunksToInsert.length > 0) {
+                // Batch insert — Supabase supports array insert
+                const { error: insertError } = await supabase.from('chunks').insert(chunksToInsert);
+                if (insertError) {
+                  console.error(
+                    `Failed to insert ${chunksToInsert.length} chunks for ${crawlResult.url}: ${insertError.message}`
+                  );
+                  totalFailed++;
+                } else {
+                  totalChunksProcessed += chunksToInsert.length;
+                }
+              }
+
+              if (failedIndices.length > 0) {
+                console.warn(
+                  `${failedIndices.length} chunks failed to embed for ${crawlResult.url}`
+                );
+              }
+            } catch (embedError) {
+              console.error(`Embedding failed for ${crawlResult.url}:`, embedError instanceof Error ? embedError.message : embedError);
+              totalFailed++;
             }
           }
 
@@ -420,7 +426,7 @@ export async function executeCrawlJob(data: CrawlJobData) {
           }
         },
       },
-      { existingPages, jobType: job_type, allowedDomains, max_depth, max_pages, include_paths, exclude_paths }
+      { existingPages, jobType: job_type, allowedDomains, max_depth, max_pages, include_paths, exclude_paths, ignore_robots }
     );
 
     const completedAt = new Date().toISOString();

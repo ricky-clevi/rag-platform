@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { agent_id, job_type = 'full' } = await request.json();
+  const { agent_id, job_type = 'full', ignore_robots } = await request.json();
 
   if (!agent_id) {
     return NextResponse.json({ error: 'agent_id required' }, { status: 400 });
@@ -76,6 +76,7 @@ export async function POST(request: NextRequest) {
     user_id: user.id,
     crawl_job_id: crawlJob?.id || '',
     job_type: job_type as 'full' | 'incremental' | 'single_page',
+    ignore_robots: ignore_robots || false,
   };
 
   let jobId: string;
