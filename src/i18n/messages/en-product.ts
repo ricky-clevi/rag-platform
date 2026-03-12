@@ -331,6 +331,11 @@ export const enProductMessages = {
     groundedLabel: 'Grounded responses',
     groundedCopy:
       'Ask questions about {companyName} and review answers with source citations drawn from the indexed site.',
+    profile: {
+      products: 'Products',
+      team: 'Team',
+      faqs: 'FAQs',
+    },
     starterTitle: 'Suggested starting prompts',
     publicIntro: 'Public web agent',
     backToPlatform: 'Back to platform',

@@ -19,6 +19,54 @@ export interface DataMapResult {
   discoveredCount: number;
   hasSitemap: boolean;
   crawlAllowed: boolean;
+  pathGroups: Array<{
+    prefix: string;
+    count: number;
+    samples: string[];
+  }>;
+}
+
+function matchesPathPatterns(url: string, patterns: string[]): boolean {
+  if (!patterns || patterns.length === 0) return true;
+  try {
+    const urlPath = new URL(url).pathname;
+    return patterns.some((pattern) => {
+      const regexPattern = pattern
+        .replace(/\*/g, '.*')
+        .replace(/\?/g, '.')
+        .replace(/\//g, '\\/');
+      return new RegExp(`^${regexPattern}`).test(urlPath);
+    });
+  } catch {
+    return false;
+  }
+}
+
+function groupUrlsByPathPrefix(urls: string[]) {
+  const groups = new Map<string, string[]>();
+
+  for (const url of urls) {
+    try {
+      const pathname = new URL(url).pathname;
+      const firstSegment = pathname.split('/').filter(Boolean)[0];
+      const prefix = firstSegment ? `/${firstSegment}` : '/';
+      const group = groups.get(prefix) || [];
+      group.push(url);
+      groups.set(prefix, group);
+    } catch {
+      const group = groups.get('/') || [];
+      group.push(url);
+      groups.set('/', group);
+    }
+  }
+
+  return [...groups.entries()]
+    .map(([prefix, samples]) => ({
+      prefix,
+      count: samples.length,
+      samples: samples.slice(0, 5),
+    }))
+    .sort((a, b) => b.count - a.count);
 }
 
 async function fetchText(url: string, timeoutMs = 8000): Promise<string | null> {
@@ -40,10 +88,15 @@ function parseSitemapUrls(xml: string): string[] {
   return [...xml.matchAll(/<loc>\s*(.*?)\s*<\/loc>/gi)].map((match) => match[1].trim());
 }
 
-export async function mapSiteUrls(url: string): Promise<DataMapResult> {
+export async function mapSiteUrls(
+  url: string,
+  options: { includePaths?: string[]; excludePaths?: string[] } = {}
+): Promise<DataMapResult> {
   const rootUrl = normalizeUrl(url);
   const domain = extractDomain(rootUrl);
   const discovered = new Set<string>([rootUrl]);
+  const includePaths = options.includePaths || [];
+  const excludePaths = options.excludePaths || [];
 
   const [homepageHtml, robotsTxt, sitemapXml] = await Promise.all([
     fetchText(rootUrl, 10000),
@@ -80,15 +133,23 @@ export async function mapSiteUrls(url: string): Promise<DataMapResult> {
     });
   }
 
-  const urls = [...discovered].sort().slice(0, 200);
+  const filteredUrls = [...discovered]
+    .filter((candidate) => {
+      const inInclude = !includePaths.length || matchesPathPatterns(candidate, includePaths);
+      const notExcluded = !excludePaths.length || !matchesPathPatterns(candidate, excludePaths);
+      return inInclude && notExcluded;
+    })
+    .sort();
+  const urls = filteredUrls.slice(0, 200);
 
   return {
     rootUrl,
     domain,
     urls,
-    discoveredCount: discovered.size,
+    discoveredCount: filteredUrls.length,
     hasSitemap,
     crawlAllowed,
+    pathGroups: groupUrlsByPathPrefix(urls),
   };
 }
 

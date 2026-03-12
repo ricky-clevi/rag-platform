@@ -88,7 +88,7 @@ export function useAgent(agentId?: string) {
         const response = await fetch('/api/crawl', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ agent_id: targetId }),
+          body: JSON.stringify({ agent_id: targetId, job_type: 'incremental' }),
         });
         if (!response.ok) throw new Error('Failed to start re-crawl');
         return true;

@@ -7,8 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { CrawlProgress } from '@/components/agent/crawl-progress';
+import { CrawlPreviewCard } from '@/components/agent/crawl-preview';
 import { isValidUrl } from '@/lib/utils/url';
 import { formatNumber } from '@/lib/utils/format';
 import type { WorkspaceMode } from '@/types';
@@ -21,6 +21,11 @@ interface CrawlPreview {
   hasSitemap: boolean;
   crawlAllowed: boolean;
   likelySpa: boolean;
+  pathGroups?: Array<{
+    prefix: string;
+    count: number;
+    samples: string[];
+  }>;
 }
 
 const steps = ['source', 'preflight', 'mode', 'launch'] as const;
@@ -58,7 +63,15 @@ export default function NewAgentPage() {
         const response = await fetch('/api/crawl/preview', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: targetUrl }),
+          body: JSON.stringify({
+            url: targetUrl,
+            include_paths: includePaths
+              ? includePaths.split(',').map((value) => value.trim()).filter(Boolean)
+              : [],
+            exclude_paths: excludePaths
+              ? excludePaths.split(',').map((value) => value.trim()).filter(Boolean)
+              : [],
+          }),
         });
         const data = await response.json();
 
@@ -273,53 +286,12 @@ export default function NewAgentPage() {
       ) : null}
 
       {step === 'preflight' && preview ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>{t('steps.preflight')}</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-4">
-              <Stat
-                title={t('preflight.urls')}
-                value={formatNumber(preview.totalUrls ?? preview.urls?.length ?? 0)}
-              />
-              <Stat title={t('preflight.hostname')} value={preview.hostname} />
-              <Stat title={t('preflight.rendering')} value={preview.likelySpa ? 'SPA' : 'HTML'} />
-              <Stat
-                title={t('preflight.scope')}
-                value={(preview.urls?.length ?? 0) > 0 ? t('preflight.liveLinks') : '0'}
-              />
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Badge variant={preview.hasSitemap ? 'success' : 'outline'}>
-                {preview.hasSitemap ? t('preflight.sitemapFound') : t('preflight.noSitemap')}
-              </Badge>
-              <Badge variant={preview.crawlAllowed || ignoreRobots ? 'success' : 'destructive'}>
-                {preview.crawlAllowed
-                  ? t('preflight.crawlAllowed')
-                  : ignoreRobots
-                    ? t('preflight.robotsOverridden')
-                    : t('preflight.crawlBlocked')}
-              </Badge>
-            </div>
-            <div className="max-h-56 space-y-2 overflow-auto pr-1">
-              {(preview.urls ?? []).slice(0, 10).map((entry) => (
-                <div
-                  key={entry}
-                  className="rounded-2xl border border-border/70 px-3 py-2 text-xs text-muted-foreground"
-                >
-                  {entry}
-                </div>
-              ))}
-            </div>
-            <div className="flex gap-3">
-              <Button variant="outline" onClick={() => setStep('source')}>
-                {t('actions.back')}
-              </Button>
-              <Button onClick={() => setStep('mode')}>{t('actions.next')}</Button>
-            </div>
-          </CardContent>
-        </Card>
+        <CrawlPreviewCard
+          preview={preview}
+          ignoreRobots={ignoreRobots}
+          onBack={() => setStep('source')}
+          onNext={() => setStep('mode')}
+        />
       ) : null}
 
       {step === 'mode' ? (
@@ -379,15 +351,6 @@ export default function NewAgentPage() {
           </CardContent>
         </Card>
       ) : null}
-    </div>
-  );
-}
-
-function Stat({ title, value }: { title: string; value: string }) {
-  return (
-    <div className="rounded-[1.3rem] border border-border/70 bg-surface-glass p-4">
-      <p className="text-sm text-muted-foreground">{title}</p>
-      <div className="mt-2 text-2xl font-semibold">{value}</div>
     </div>
   );
 }

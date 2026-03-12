@@ -3,7 +3,7 @@
  * Run with: npx tsx workers/crawl-worker.ts
  */
 
-import 'dotenv/config';
+import './load-env';
 import { startCrawlWorker } from '../src/lib/queue/worker';
 
 console.log('Starting crawl worker...');

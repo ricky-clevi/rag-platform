@@ -83,6 +83,7 @@ export const koAgentMessages = {
         loading: '처리 중...',
       },
       preflight: {
+        groupedPaths: '\uACBD\uB85C \uADF8\uB8F9',
         urls: '발견된 URL',
         hostname: '호스트명',
         rendering: '렌더링 방식',
@@ -123,6 +124,10 @@ export const koAgentMessages = {
       error: '오류',
     },
     card: {
+      fresh: '\uCD5C\uC2E0',
+      hoursAgo: '{count}\uC2DC\uAC04 \uC804',
+      daysAgo: '{count}\uC77C \uC804',
+      deleteFailed: '\uC0AD\uC81C\uC5D0 \uC2E4\uD328\uD588\uC2B5\uB2C8\uB2E4. \uB2E4\uC2DC \uC2DC\uB3C4\uD574 \uC8FC\uC138\uC694.',
       pages: '페이지',
       chunks: '청크',
       created: '생성일',
@@ -271,6 +276,18 @@ export const koAgentMessages = {
         empty: '추가 도메인이 없습니다.',
       },
       monitoring: {
+        crawlOptions: {
+          stealthMode: '\uC2A4\uD154\uC2A4 \uBAA8\uB4DC',
+          stealthModeHint: '\uD06C\uB864 \uC911 \uB370\uC2A4\uD06C\uD1B1 \uC9C0\uBB38\uC744 \uC21C\uD658\uD569\uB2C8\uB2E4',
+          proxyUrl: '\uD504\uB85D\uC2DC URL',
+          ocrExtraction: 'OCR \uCD94\uCD9C',
+          ocrExtractionHint: '\uB3D9\uC77C \uC624\uB9AC\uC9C4 \uC774\uBBF8\uC9C0\uC5D0\uC11C \uD14D\uC2A4\uD2B8\uB97C \uCD94\uCD9C\uD569\uB2C8\uB2E4',
+          maxOcrImages: '\uD398\uC774\uC9C0\uB2F9 \uCD5C\uB300 OCR \uC774\uBBF8\uC9C0',
+          tableDescriptions: '\uD14C\uC774\uBE14 \uC694\uC57D',
+          tableDescriptionsHint: 'Gemini\uB85C \uBCF5\uC7A1\uD55C \uD14C\uC774\uBE14\uC744 \uC694\uC57D\uD569\uB2C8\uB2E4',
+          youtubeTranscripts: 'YouTube \uC790\uB9C9',
+          youtubeTranscriptsHint: '\uD398\uC774\uC9C0\uB2F9 \uCD5C\uB300 3\uAC1C\uC758 \uB9C1\uD06C\uB41C \uC790\uB9C9\uC744 \uAC00\uC838\uC635\uB2C8\uB2E4',
+        },
         title: '모니터링',
         copy:
           '재크롤 주기를 정의하고 다음 실행 시점을 확인하며, 더 깊은 크롤 검토가 필요하면 모니터 화면으로 이동하세요.',

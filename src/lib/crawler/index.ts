@@ -8,6 +8,7 @@ import { chunkText, type TextChunk } from './chunker';
 import { extractPdfText, isPdfWithinLimit } from './pdf-extractor';
 import { isLikelyBoilerplate } from './boilerplate-dedup';
 import { normalizeUrl, shouldSkipUrl, isInDomainScope, isPdfUrl } from '@/lib/utils/url';
+import type { AgentCrawlOptions } from '@/types';
 import type { StructuredData } from './structured-data';
 import type { ExtractedContent } from './content-extractor';
 
@@ -34,6 +35,7 @@ export interface CrawlResult {
   pageType: 'html' | 'pdf' | 'other';
   robotsAllowed: boolean;
   structuredData?: StructuredData;
+  extractionMethod?: 'readability' | 'cheerio' | 'llm';
 }
 
 export interface SkippedPage {
@@ -65,6 +67,8 @@ export interface CrawlOptions {
   exclude_paths?: string[];
   /** Ignore robots.txt restrictions (for sites that block bots but have public content) */
   ignore_robots?: boolean;
+  /** Optional persisted crawl settings from agent_settings */
+  crawlOptions?: AgentCrawlOptions | null;
 }
 
 const USER_AGENT = 'AgentForgeBot';
@@ -377,8 +381,14 @@ export async function crawlWebsite(
 
         if (!isSpa) {
           const conditionalOpts = existing
-            ? { ifNoneMatch: existing.etag, ifModifiedSince: existing.lastModified }
-            : undefined;
+            ? {
+                ifNoneMatch: existing.etag,
+                ifModifiedSince: existing.lastModified,
+                crawlOptions: options.crawlOptions,
+              }
+            : {
+                crawlOptions: options.crawlOptions,
+              };
 
           const extracted = await crawlPageHttp(url, conditionalOpts);
 
@@ -403,7 +413,7 @@ export async function crawlWebsite(
 
         // Try browser crawler if HTTP content was too thin or unavailable
         if (!content) {
-          const browserResult = await crawlPageBrowser(url);
+          const browserResult = await crawlPageBrowser(url, options.crawlOptions);
           if (browserResult) {
             content = {
               ...browserResult,
@@ -450,6 +460,7 @@ export async function crawlWebsite(
               pageType: content.pageType,
               robotsAllowed: true,
               structuredData: content.structuredData,
+              extractionMethod: content.extractionMethod,
             };
 
             await callbacks.onPageCrawled(result);

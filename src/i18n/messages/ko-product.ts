@@ -297,6 +297,11 @@ export const koProductMessages = {
     },
   },
   chat: {
+    profile: {
+      products: '\uC81C\uD488',
+      team: '\uD300',
+      faqs: 'FAQ',
+    },
     title: '{agentName}와 대화',
     placeholder: '{companyName}에 대해 질문해 보세요...',
     inputPlaceholder: '메시지를 입력하세요...',

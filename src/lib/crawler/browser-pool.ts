@@ -1,4 +1,5 @@
 import puppeteer, { Browser } from 'puppeteer-core';
+import { getProxyLaunchArgs, type CrawlStealthOptions } from './stealth';
 
 const MAX_BROWSERS = 3;
 const MAX_PAGES_PER_BROWSER = 50;
@@ -7,6 +8,7 @@ interface PooledBrowser {
   browser: Browser;
   pageCount: number;
   inUse: number;
+  proxyKey: string;
 }
 
 class BrowserPool {
@@ -55,10 +57,12 @@ class BrowserPool {
     }
   }
 
-  async acquire(): Promise<{ browser: Browser; release: () => void }> {
+  async acquire(options?: CrawlStealthOptions): Promise<{ browser: Browser; release: () => void }> {
+    const proxyKey = options?.proxy_url || '';
+
     // Find an available browser with capacity
     for (const pooled of this.browsers) {
-      if (pooled.inUse < 2 && pooled.pageCount < MAX_PAGES_PER_BROWSER) {
+      if (pooled.proxyKey === proxyKey && pooled.inUse < 2 && pooled.pageCount < MAX_PAGES_PER_BROWSER) {
         pooled.inUse++;
         pooled.pageCount++;
         return {
@@ -81,9 +85,10 @@ class BrowserPool {
           '--disable-gpu',
           '--disable-software-rasterizer',
           '--disable-extensions',
+          ...getProxyLaunchArgs(options),
         ],
       });
-      const pooled: PooledBrowser = { browser, pageCount: 1, inUse: 1 };
+      const pooled: PooledBrowser = { browser, pageCount: 1, inUse: 1, proxyKey };
       this.browsers.push(pooled);
       return {
         browser: pooled.browser,
@@ -93,7 +98,7 @@ class BrowserPool {
 
     // Wait for a slot
     await new Promise(resolve => setTimeout(resolve, 1000));
-    return this.acquire();
+    return this.acquire(options);
   }
 
   async closeAll(): Promise<void> {

@@ -227,7 +227,7 @@ export default async function PublicAgentPage({
 
   const { data: agentSettings } = await supabase
     .from('agent_settings')
-    .select('welcome_message, starter_questions')
+    .select('welcome_message, starter_questions, company_profile')
     .eq('agent_id', agent.id)
     .single();
 
@@ -251,6 +251,7 @@ export default async function PublicAgentPage({
       rootUrl={agent.root_url}
       welcomeMessage={agentSettings?.welcome_message || undefined}
       starterQuestions={agentSettings?.starter_questions || []}
+      companyProfile={agentSettings?.company_profile || undefined}
       shareToken={skipPasscode ? token : undefined}
     />
   );

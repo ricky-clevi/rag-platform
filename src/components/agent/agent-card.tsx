@@ -6,7 +6,7 @@ import { useTranslations } from 'next-intl';
 import { Link } from '@/i18n/navigation';
 import { Button } from '@/components/ui/button';
 import { AgentStatusBadge } from './agent-status';
-import { Globe, MessageSquare, Settings, Trash2, FileText, Database } from 'lucide-react';
+import { Globe, MessageSquare, Settings, Trash2, FileText, Database, Clock3 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import type { Agent } from '@/types';
 
@@ -49,6 +49,22 @@ export function AgentCard({ agent, onDelete }: AgentCardProps) {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const [deleted, setDeleted] = useState(false);
+  const [renderedAt] = useState(() => Date.now());
+
+  const freshnessLabel = (() => {
+    const value = agent.crawl_stats?.completed_at;
+    if (!value) return null;
+
+    const timestamp = new Date(value).getTime();
+    if (Number.isNaN(timestamp)) return null;
+
+    const hours = Math.max(0, Math.round((renderedAt - timestamp) / 3_600_000));
+    if (hours < 24) {
+      return hours <= 2 ? t('fresh') : t('hoursAgo', { count: hours });
+    }
+
+    return t('daysAgo', { count: Math.round(hours / 24) });
+  })();
 
   if (deleted) {
     return null;
@@ -69,7 +85,7 @@ export function AgentCard({ agent, onDelete }: AgentCardProps) {
       const payload = await response.json().catch(() => null);
 
       if (!response.ok) {
-        setDeleteError(payload?.error || 'Delete failed. Please try again.');
+        setDeleteError(payload?.error || t('deleteFailed'));
         setDeleting(false);
         return;
       }
@@ -78,7 +94,7 @@ export function AgentCard({ agent, onDelete }: AgentCardProps) {
       onDelete?.(agent.id);
       router.refresh();
     } catch {
-      setDeleteError('Delete failed. Please try again.');
+      setDeleteError(t('deleteFailed'));
       setDeleting(false);
     }
   };
@@ -134,6 +150,12 @@ export function AgentCard({ agent, onDelete }: AgentCardProps) {
             <div className="flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
               <Database className="h-3 w-3" />
               {agent.crawl_stats.total_chunks} {t('chunks')}
+            </div>
+          )}
+          {freshnessLabel && (
+            <div className="flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
+              <Clock3 className="h-3 w-3" />
+              {freshnessLabel}
             </div>
           )}
         </div>

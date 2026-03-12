@@ -141,6 +141,7 @@ export async function PATCH(
     if (settings.temperature !== undefined) settingsUpdates.temperature = settings.temperature;
     if (settings.max_tokens !== undefined) settingsUpdates.max_tokens = settings.max_tokens;
     if (settings.theme_color !== undefined) settingsUpdates.theme_color = settings.theme_color;
+    if (settings.crawl_options !== undefined) settingsUpdates.crawl_options = settings.crawl_options;
 
     if (Object.keys(settingsUpdates).length > 0) {
       await serviceClient

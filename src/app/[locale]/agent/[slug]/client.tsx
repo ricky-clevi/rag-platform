@@ -10,7 +10,7 @@ import { ExternalLink, Globe } from 'lucide-react';
 import { LogoIcon } from '@/components/common/logo-icon';
 import { LanguageSwitcher } from '@/components/common/language-switcher';
 import { ThemeSwitcher } from '@/components/common/theme-switcher';
-import type { AgentVisibility } from '@/types';
+import type { AgentVisibility, CompanyProfileData } from '@/types';
 
 interface PublicAgentClientProps {
   agent: {
@@ -22,6 +22,7 @@ interface PublicAgentClientProps {
   rootUrl: string;
   welcomeMessage?: string;
   starterQuestions: string[];
+  companyProfile?: CompanyProfileData;
   shareToken?: string;
 }
 
@@ -31,6 +32,7 @@ export function PublicAgentClient({
   rootUrl,
   welcomeMessage,
   starterQuestions,
+  companyProfile,
   shareToken,
 }: PublicAgentClientProps) {
   const t = useTranslations('chat');
@@ -91,6 +93,47 @@ export function PublicAgentClient({
         </div>
 
         <div className="min-h-[78vh]">
+          {companyProfile && (
+            <div className="mb-6 grid gap-4 md:grid-cols-3">
+              {(companyProfile.products?.length || 0) > 0 && (
+                <div className="rounded-[1.5rem] border border-border/70 bg-surface-glass p-4">
+                  <p className="text-sm font-semibold">{t('profile.products')}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {companyProfile.products?.slice(0, 6).map((item) => (
+                      <Badge key={item.value} variant="outline" className="bg-surface-glass-strong">
+                        {item.value}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {(companyProfile.team?.length || 0) > 0 && (
+                <div className="rounded-[1.5rem] border border-border/70 bg-surface-glass p-4">
+                  <p className="text-sm font-semibold">{t('profile.team')}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {companyProfile.team?.slice(0, 6).map((item) => (
+                      <Badge key={item.value} variant="outline" className="bg-surface-glass-strong">
+                        {item.value}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {(companyProfile.faqs?.length || 0) > 0 && (
+                <div className="rounded-[1.5rem] border border-border/70 bg-surface-glass p-4">
+                  <p className="text-sm font-semibold">{t('profile.faqs')}</p>
+                  <div className="mt-3 space-y-2">
+                    {companyProfile.faqs?.slice(0, 3).map((item) => (
+                      <div key={item.question} className="rounded-xl bg-background/70 px-3 py-2">
+                        <p className="text-sm font-medium">{item.question}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{item.answer}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
           <ChatInterface
             agentId={agent.id}
             agentName={agent.name}

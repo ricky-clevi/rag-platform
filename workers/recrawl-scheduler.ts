@@ -6,7 +6,7 @@
  * Run with: npx tsx workers/recrawl-scheduler.ts
  */
 
-import 'dotenv/config';
+import './load-env';
 import { createClient } from '@supabase/supabase-js';
 import { Queue } from 'bullmq';
 import { getRedisConnectionOpts } from '../src/lib/queue/connection';

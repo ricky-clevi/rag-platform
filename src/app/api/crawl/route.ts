@@ -25,7 +25,15 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { agent_id, job_type = 'full', ignore_robots } = await request.json();
+  const {
+    agent_id,
+    job_type = 'incremental',
+    ignore_robots,
+    include_paths,
+    exclude_paths,
+    max_depth,
+    max_pages,
+  } = await request.json();
 
   if (!agent_id) {
     return NextResponse.json({ error: 'agent_id required' }, { status: 400 });
@@ -77,6 +85,10 @@ export async function POST(request: NextRequest) {
     crawl_job_id: crawlJob?.id || '',
     job_type: job_type as 'full' | 'incremental' | 'single_page',
     ignore_robots: ignore_robots || false,
+    include_paths: Array.isArray(include_paths) ? include_paths : [],
+    exclude_paths: Array.isArray(exclude_paths) ? exclude_paths : [],
+    max_depth: typeof max_depth === 'number' ? max_depth : undefined,
+    max_pages: typeof max_pages === 'number' ? max_pages : undefined,
   };
 
   let jobId: string;

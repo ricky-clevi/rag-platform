@@ -1,8 +1,7 @@
 import { extractContent, type ExtractedContent } from './content-extractor';
+import { buildStealthFetchHeaders, type CrawlStealthOptions } from './stealth';
 
 const DEFAULT_TIMEOUT = 15000;
-const USER_AGENT =
-  'Mozilla/5.0 (compatible; AgentForgeBot/1.0; +https://agentforge.dev)';
 
 export interface FetchResult {
   html: string;
@@ -14,17 +13,16 @@ export interface FetchResult {
 
 export async function fetchPage(
   url: string,
-  options?: { ifNoneMatch?: string; ifModifiedSince?: string }
+  options?: { ifNoneMatch?: string; ifModifiedSince?: string; crawlOptions?: CrawlStealthOptions | null }
 ): Promise<FetchResult | null> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT);
 
-    const headers: Record<string, string> = {
-      'User-Agent': USER_AGENT,
+    const headers = buildStealthFetchHeaders(url, options?.crawlOptions || undefined, {
       Accept: 'text/html,application/xhtml+xml,application/pdf',
       'Accept-Language': 'en-US,en;q=0.9,ko;q=0.8',
-    };
+    });
 
     // Conditional request headers for efficient recrawling
     if (options?.ifNoneMatch) {
@@ -74,7 +72,7 @@ export async function fetchPage(
 
 export async function crawlPageHttp(
   url: string,
-  options?: { ifNoneMatch?: string; ifModifiedSince?: string }
+  options?: { ifNoneMatch?: string; ifModifiedSince?: string; crawlOptions?: CrawlStealthOptions | null }
 ): Promise<(ExtractedContent & { etag: string | null; lastModified: string | null; statusCode: number; rawHtmlLength: number; pageType: 'html' | 'pdf' | 'other' }) | null> {
   const result = await fetchPage(url, options);
   if (!result) return null;
@@ -88,6 +86,8 @@ export async function crawlPageHttp(
       description: '',
       canonical: null,
       language: 'en',
+      extractionMethod: 'readability',
+      qualityScore: 0,
       etag: result.etag,
       lastModified: result.lastModified,
       statusCode: 304,
@@ -112,6 +112,8 @@ export async function crawlPageHttp(
       description: '',
       canonical: null,
       language: 'en',
+      extractionMethod: 'readability',
+      qualityScore: 0,
       etag: result.etag,
       lastModified: result.lastModified,
       statusCode: result.status,
@@ -120,7 +122,9 @@ export async function crawlPageHttp(
     };
   }
 
-  const extracted = extractContent(result.html, url);
+  const extracted = await extractContent(result.html, url, {
+    crawlOptions: options?.crawlOptions,
+  });
 
   // If content is too minimal, still return the result with links intact
   // so the crawler can discover follow-up pages even from thin hub pages.

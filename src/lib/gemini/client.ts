@@ -13,6 +13,14 @@ export function getGeminiClient(): GoogleGenAI {
   return client;
 }
 
+export function tryGetGeminiClient(): GoogleGenAI | null {
+  try {
+    return getGeminiClient();
+  } catch {
+    return null;
+  }
+}
+
 export const EMBEDDING_MODEL = process.env.GEMINI_EMBEDDING_MODEL || 'gemini-embedding-001';
 export const DEFAULT_CHAT_MODEL = process.env.GEMINI_DEFAULT_MODEL || 'gemini-3.1-flash-lite-preview';
 export const ESCALATION_CHAT_MODEL = process.env.GEMINI_ESCALATION_MODEL || 'gemini-3.1-pro-preview';

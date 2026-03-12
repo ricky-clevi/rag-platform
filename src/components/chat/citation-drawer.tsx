@@ -50,7 +50,7 @@ export function CitationDrawer({ sources }: CitationDrawerProps) {
                 const faviconUrl = getFaviconUrl(source.url);
                 return faviconUrl ? (
                   <img
-                    key={`${source.url}-${idx}`}
+                    key={`${source.chunk_id || source.url}-${idx}`}
                     src={faviconUrl}
                     alt=""
                     width={12}
@@ -73,7 +73,7 @@ export function CitationDrawer({ sources }: CitationDrawerProps) {
 
             return (
               <a
-                key={`${source.url}-${index}`}
+                key={`${source.chunk_id || source.url}-${index}`}
                 href={source.url}
                 target="_blank"
                 rel="noopener noreferrer"

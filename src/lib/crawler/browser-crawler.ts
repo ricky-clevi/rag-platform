@@ -1,6 +1,10 @@
 import { Page } from 'puppeteer-core';
 import { getBrowserPool } from './browser-pool';
 import { extractContent, type ExtractedContent } from './content-extractor';
+import {
+  buildPuppeteerStealthConfig,
+  type CrawlStealthOptions,
+} from './stealth';
 
 const COOKIE_SELECTORS = [
   '[class*="cookie"] button',
@@ -133,14 +137,19 @@ async function waitForDomStability(page: Page, stableMs: number): Promise<void> 
   }
 }
 
-export async function crawlPageBrowser(url: string): Promise<ExtractedContent | null> {
+export async function crawlPageBrowser(
+  url: string,
+  crawlOptions?: CrawlStealthOptions | null
+): Promise<ExtractedContent | null> {
   const pool = getBrowserPool();
-  const { browser, release } = await pool.acquire();
+  const { browser, release } = await pool.acquire(crawlOptions || undefined);
 
   try {
     const page = await browser.newPage();
 
     try {
+      const stealthConfig = buildPuppeteerStealthConfig(url, crawlOptions || undefined);
+
       // Block unnecessary resources
       await page.setRequestInterception(true);
       page.on('request', (req) => {
@@ -152,7 +161,9 @@ export async function crawlPageBrowser(url: string): Promise<ExtractedContent | 
         }
       });
 
-      await page.setUserAgent('Mozilla/5.0 (compatible; AgentForgeBot/1.0; +https://agentforge.dev)');
+      await page.setViewport(stealthConfig.viewport);
+      await page.setExtraHTTPHeaders(stealthConfig.extraHTTPHeaders);
+      await page.setUserAgent(stealthConfig.userAgent);
       await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
 
       // Dismiss cookie banners
@@ -165,7 +176,7 @@ export async function crawlPageBrowser(url: string): Promise<ExtractedContent | 
       await waitForDomStability(page, 1000);
 
       const html = await page.content();
-      return extractContent(html, url);
+      return extractContent(html, url, { crawlOptions });
     } finally {
       await page.close();
     }

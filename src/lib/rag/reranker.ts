@@ -11,7 +11,10 @@ export async function rerankChunks(
   const client = getGeminiClient();
 
   const chunkList = chunks
-    .map((c, i) => `[${i}] ${c.content.slice(0, 300)}`)
+    .map((c, i) => {
+      const prefix = c.context_prefix ? `${c.context_prefix}\n` : '';
+      return `[${i}] ${prefix}${c.content.slice(0, 300)}`;
+    })
     .join('\n\n');
 
   const prompt = `Given a user question, rank the following text passages by relevance. Return ONLY a JSON array of passage indices (numbers) from most to least relevant. Return at most ${topK} indices.

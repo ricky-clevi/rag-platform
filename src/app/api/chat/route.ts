@@ -9,10 +9,189 @@ import {
   verifyPasscodeSessionToken,
 } from '@/lib/security/passcode-session';
 import { enhanceQuery } from '@/lib/rag/query-enhancer';
+import { analyzeQuery } from '@/lib/rag/query-analyzer';
 import { rerankChunks } from '@/lib/rag/reranker';
 import { buildConversationContext } from '@/lib/rag/conversation-memory';
 import { getCachedEmbedding, setCachedEmbedding } from '@/lib/rag/cache';
 import type { MatchedChunk, SourceCitation } from '@/types';
+
+async function getOrCreateQueryEmbedding(query: string) {
+  let embedding = await getCachedEmbedding(query);
+  if (!embedding) {
+    embedding = await generateQueryEmbedding(query);
+    await setCachedEmbedding(query, embedding);
+  }
+  return embedding;
+}
+
+function mergeMatchedChunks(chunkGroups: MatchedChunk[][]): MatchedChunk[] {
+  const chunkMap = new Map<string, MatchedChunk>();
+
+  for (const group of chunkGroups) {
+    for (const chunk of group) {
+      const existing = chunkMap.get(chunk.id);
+      if (!existing || (chunk.combined_score || 0) > (existing.combined_score || 0)) {
+        chunkMap.set(chunk.id, chunk);
+      }
+    }
+  }
+
+  return [...chunkMap.values()].sort((a, b) => b.combined_score - a.combined_score);
+}
+
+type PageLookup = {
+  id: string;
+  url: string;
+  title: string | null;
+};
+
+async function loadPageMapForChunks(
+  supabase: ReturnType<typeof createServiceClient>,
+  chunks: MatchedChunk[]
+): Promise<Map<string, PageLookup>> {
+  const pageIds = [
+    ...new Set(
+      chunks.map((chunk) => chunk.page_id).filter((value): value is string => Boolean(value))
+    ),
+  ];
+
+  if (pageIds.length === 0) {
+    return new Map();
+  }
+
+  const { data: pages } = await supabase
+    .from('pages')
+    .select('id, url, title')
+    .in('id', pageIds);
+
+  return new Map(((pages || []) as PageLookup[]).map((page) => [page.id, page]));
+}
+
+function buildSourceFromChunk(
+  chunk: MatchedChunk,
+  pageMap: Map<string, PageLookup>
+): SourceCitation | null {
+  if (!chunk.page_id) {
+    return null;
+  }
+
+  const page = pageMap.get(chunk.page_id);
+  if (!page?.url) {
+    return null;
+  }
+
+  return {
+    chunk_id: chunk.id,
+    url: page.url,
+    title: page.title || page.url,
+    snippet: chunk.snippet || chunk.content.slice(0, 150),
+    heading_path: chunk.heading_path || undefined,
+    similarity: chunk.similarity,
+  };
+}
+
+function buildContextSources(
+  chunks: MatchedChunk[],
+  pageMap: Map<string, PageLookup>,
+  limit: number = 5
+): SourceCitation[] {
+  return chunks
+    .map((chunk) => buildSourceFromChunk(chunk, pageMap))
+    .filter((source): source is SourceCitation => Boolean(source))
+    .slice(0, limit);
+}
+
+function buildValidatedStructuredSources(
+  citations: Array<{ chunk_id?: string; excerpt?: string }>,
+  chunks: MatchedChunk[],
+  pageMap: Map<string, PageLookup>
+): SourceCitation[] {
+  const chunkMap = new Map(chunks.map((chunk) => [chunk.id, chunk]));
+  const seenChunkIds = new Set<string>();
+  const sources: SourceCitation[] = [];
+
+  for (const citation of citations) {
+    if (!citation?.chunk_id || seenChunkIds.has(citation.chunk_id)) {
+      continue;
+    }
+
+    const chunk = chunkMap.get(citation.chunk_id);
+    if (!chunk) {
+      continue;
+    }
+
+    const source = buildSourceFromChunk(chunk, pageMap);
+    if (!source) {
+      continue;
+    }
+
+    sources.push({
+      ...source,
+      snippet:
+        typeof citation.excerpt === 'string' && citation.excerpt.trim().length > 0
+          ? citation.excerpt.trim()
+          : source.snippet,
+    });
+    seenChunkIds.add(citation.chunk_id);
+  }
+
+  return sources;
+}
+
+async function retrieveRelevantChunks(
+  supabase: ReturnType<typeof createServiceClient>,
+  agentId: string,
+  message: string,
+  contextForSearch: string,
+  agentName: string
+): Promise<{
+  chunks: MatchedChunk[];
+  enhancedQuery: Awaited<ReturnType<typeof enhanceQuery>>;
+  analysis: Awaited<ReturnType<typeof analyzeQuery>>;
+}> {
+  const analysis = await analyzeQuery(message, contextForSearch);
+  const enhancedQuery = await enhanceQuery(analysis.resolvedQuery, contextForSearch, agentName);
+  const primaryQueries =
+    analysis.complexity === 'simple'
+      ? [enhancedQuery.reformulated]
+      : analysis.subQueries.slice(0, 4);
+
+  const searchGroups = await Promise.all(
+    primaryQueries.map(async (query) => {
+      const queryEmbedding = await getOrCreateQueryEmbedding(query);
+      const { data } = await supabase.rpc('hybrid_search', {
+        query_embedding: JSON.stringify(queryEmbedding),
+        query_text: query,
+        match_agent_id: agentId,
+        match_count: analysis.complexity === 'simple' ? 15 : 8,
+        semantic_weight: 0.7,
+        keyword_weight: 0.3,
+      });
+      return (data || []) as MatchedChunk[];
+    })
+  );
+
+  let merged = mergeMatchedChunks(searchGroups);
+
+  if (analysis.shouldReflect && merged.length < 8) {
+    const reflectionQuery = [enhancedQuery.reformulated, ...analysis.subQueries]
+      .filter(Boolean)
+      .join(' ');
+    const reflectionEmbedding = await getOrCreateQueryEmbedding(reflectionQuery);
+    const { data } = await supabase.rpc('hybrid_search', {
+      query_embedding: JSON.stringify(reflectionEmbedding),
+      query_text: reflectionQuery,
+      match_agent_id: agentId,
+      match_count: 12,
+      semantic_weight: 0.72,
+      keyword_weight: 0.28,
+    });
+    merged = mergeMatchedChunks([merged, (data || []) as MatchedChunk[]]);
+  }
+
+  const reranked = await rerankChunks(message, merged, 6);
+  return { chunks: reranked, enhancedQuery, analysis };
+}
 
 export async function POST(request: NextRequest) {
   // Bot detection (#18)
@@ -244,35 +423,14 @@ export async function POST(request: NextRequest) {
         // Build conversation context with memory management
         const { recentMessages, summary, contextForSearch } = await buildConversationContext(history);
 
-        // Enhance query using conversation context
-        const enhanced = await enhanceQuery(message, contextForSearch, agent.name);
-
-        // Generate embedding for enhanced query (check cache first)
-        let queryEmbedding = await getCachedEmbedding(enhanced.reformulated);
-        if (!queryEmbedding) {
-          queryEmbedding = await generateQueryEmbedding(enhanced.reformulated);
-          await setCachedEmbedding(enhanced.reformulated, queryEmbedding);
-        }
-
-        // Retrieve more chunks for re-ranking (15 instead of 8)
-        const { data: matchedChunks } = await supabase.rpc('hybrid_search', {
-          query_embedding: JSON.stringify(queryEmbedding),
-          query_text: enhanced.searchTerms.length > 0 ? enhanced.searchTerms.join(' ') : message,
-          match_agent_id: agent_id,
-          match_count: 15,
-          semantic_weight: 0.7,
-          keyword_weight: 0.3,
-        });
-
-        // Re-rank to top 6
-        const context: MatchedChunk[] = await rerankChunks(message, matchedChunks || [], 6);
-
-        // Get page URLs for chunks to build sources
-        const pageIds = [...new Set(context.filter((c) => c.page_id).map((c) => c.page_id!))];
-        const { data: pages } = pageIds.length > 0
-          ? await supabase.from('pages').select('id, url, title').in('id', pageIds)
-          : { data: [] };
-        const pageMap = new Map((pages || []).map((p: { id: string; url: string; title: string | null }) => [p.id, p]));
+        const { chunks: context, enhancedQuery, analysis } = await retrieveRelevantChunks(
+          supabase,
+          agent_id,
+          message,
+          contextForSearch,
+          agent.name
+        );
+        const pageMap = await loadPageMapForChunks(supabase, context);
 
         // Build history with summary for the chat model
         const historyForChat: { role: 'user' | 'assistant'; content: string }[] = summary
@@ -302,20 +460,24 @@ export async function POST(request: NextRequest) {
           );
         }
 
-        // Build sources from re-ranked context chunks
-        const sources: SourceCitation[] = context
-          .slice(0, 5)
-          .map((chunk) => {
-            const page = chunk.page_id ? pageMap.get(chunk.page_id) : null;
-            return {
-              url: page?.url || '',
-              title: page?.title || '',
-              snippet: chunk.snippet || chunk.content.slice(0, 150),
-              heading_path: chunk.heading_path || undefined,
-              similarity: chunk.similarity,
-            };
-          })
-          .filter((s) => s.url);
+        const sources = buildContextSources(context, pageMap);
+
+        let assistantMessageId: string | null = null;
+        if (convId) {
+          const { data: insertedMessage } = await supabase
+            .from('messages')
+            .insert({
+              conversation_id: convId,
+              role: 'assistant',
+              content: fullResponse,
+              sources,
+              model_used: defaultModel,
+              token_usage: {},
+            })
+            .select('id')
+            .single();
+          assistantMessageId = insertedMessage?.id || null;
+        }
 
         // Send sources after stream completes
         controller.enqueue(
@@ -326,21 +488,10 @@ export async function POST(request: NextRequest) {
               conversation_id: convId,
               confidence: null,
               model_used: defaultModel,
+              message_id: assistantMessageId,
             })}\n\n`
           )
         );
-
-        // Store assistant message
-        if (convId) {
-          await supabase.from('messages').insert({
-            conversation_id: convId,
-            role: 'assistant',
-            content: fullResponse,
-            sources,
-            model_used: defaultModel,
-            token_usage: {},
-          });
-        }
 
         // Record usage event (#23)
         recordUsageEvent({
@@ -349,8 +500,9 @@ export async function POST(request: NextRequest) {
           metadata: {
             model_used: defaultModel,
             sources_count: sources.length,
-            query_enhanced: enhanced.reformulated !== enhanced.original,
-            is_follow_up: enhanced.isFollowUp,
+            query_enhanced: enhancedQuery.reformulated !== enhancedQuery.original,
+            is_follow_up: enhancedQuery.isFollowUp,
+            query_complexity: analysis.complexity,
             conversation_id: convId,
             ip: clientIp,
           },
@@ -361,23 +513,22 @@ export async function POST(request: NextRequest) {
       } catch (streamError) {
         // Fallback: try structured response if streaming fails
         try {
-          const queryEmbedding = await generateQueryEmbedding(message);
-          const { data: matchedChunks } = await supabase.rpc('hybrid_search', {
-            query_embedding: JSON.stringify(queryEmbedding),
-            query_text: message,
-            match_agent_id: agent_id,
-            match_count: 8,
-            semantic_weight: 0.7,
-            keyword_weight: 0.3,
-          });
-          const context: MatchedChunk[] = matchedChunks || [];
+          const { recentMessages, contextForSearch } = await buildConversationContext(history);
+          const { chunks: context, analysis } = await retrieveRelevantChunks(
+            supabase,
+            agent_id,
+            message,
+            contextForSearch,
+            agent.name
+          );
+          const pageMap = await loadPageMapForChunks(supabase, context);
 
           const { structured, model_used } = await generateStructuredResponse(
             agent.name,
             agent.root_url,
             message,
             context,
-            history,
+            recentMessages,
             {
               systemPrompt: agentSettings?.system_prompt,
               temperature: agentSettings?.temperature,
@@ -393,33 +544,30 @@ export async function POST(request: NextRequest) {
             encoder.encode(`data: ${JSON.stringify({ type: 'text', content: structured.answer })}\n\n`)
           );
 
-          // Build sources from structured citations
-          const sources: SourceCitation[] = structured.citations.map((c) => ({
-            url: c.url || '',
-            title: c.title || '',
-            snippet: c.excerpt || '',
-          }));
+          // Only keep citations that refer to retrieved chunks and stored pages.
+          let sources = buildValidatedStructuredSources(structured.citations, context, pageMap);
 
           // Fall back to chunk-based sources if no citations
           if (sources.length === 0) {
-            const pageIds = [...new Set(context.filter((c) => c.page_id).map((c) => c.page_id!))];
-            const { data: pages } = pageIds.length > 0
-              ? await supabase.from('pages').select('id, url, title').in('id', pageIds)
-              : { data: [] };
-            const fallbackPageMap = new Map((pages || []).map((p: { id: string; url: string; title: string | null }) => [p.id, p]));
+            sources = buildContextSources(context, pageMap);
+          }
 
-            for (const chunk of context.slice(0, 5)) {
-              const page = chunk.page_id ? fallbackPageMap.get(chunk.page_id) : null;
-              if (page) {
-                sources.push({
-                  url: page.url,
-                  title: page.title || page.url,
-                  snippet: chunk.snippet || chunk.content.slice(0, 150) + '...',
-                  heading_path: chunk.heading_path || undefined,
-                  similarity: chunk.similarity,
-                });
-              }
-            }
+          let assistantMessageId: string | null = null;
+          if (convId) {
+            const { data: insertedMessage } = await supabase
+              .from('messages')
+              .insert({
+                conversation_id: convId,
+                role: 'assistant',
+                content: structured.answer,
+                sources,
+                model_used,
+                confidence: structured.confidence,
+                token_usage: {},
+              })
+              .select('id')
+              .single();
+            assistantMessageId = insertedMessage?.id || null;
           }
 
           controller.enqueue(
@@ -431,21 +579,10 @@ export async function POST(request: NextRequest) {
                 confidence: structured.confidence,
                 model_used,
                 answered_from_sources_only: structured.answered_from_sources_only,
+                message_id: assistantMessageId,
               })}\n\n`
             )
           );
-
-          if (convId) {
-            await supabase.from('messages').insert({
-              conversation_id: convId,
-              role: 'assistant',
-              content: structured.answer,
-              sources,
-              model_used,
-              confidence: structured.confidence,
-              token_usage: {},
-            });
-          }
 
           recordUsageEvent({
             agent_id,
@@ -454,6 +591,7 @@ export async function POST(request: NextRequest) {
               model_used,
               confidence: structured.confidence,
               fallback: true,
+              query_complexity: analysis.complexity,
               conversation_id: convId,
               ip: clientIp,
             },

@@ -20,7 +20,7 @@ function buildSystemPrompt(
   const contextText = context
     .map(
       (chunk, i) =>
-        `[Source ${i + 1}] (chunk_id: ${chunk.id}, heading: ${chunk.heading_path || 'n/a'}):\n${chunk.content}`
+        `[Source ${i + 1}] (chunk_id: ${chunk.id}, heading: ${chunk.heading_path || 'n/a'}):\n${chunk.context_prefix ? `${chunk.context_prefix}\n` : ''}${chunk.content}`
     )
     .join('\n\n---\n\n');
 
@@ -206,7 +206,7 @@ export async function* streamChatResponse(
   const contextText = context
     .map(
       (chunk, i) =>
-        `[Source ${i + 1}] (${chunk.heading_path || 'n/a'}):\n${chunk.content}`
+        `[Source ${i + 1}] (${chunk.heading_path || 'n/a'}):\n${chunk.context_prefix ? `${chunk.context_prefix}\n` : ''}${chunk.content}`
     )
     .join('\n\n---\n\n');
 

@@ -20,7 +20,7 @@ export function SourceCitationList({ sources }: SourceCitationListProps) {
       <div className="flex flex-wrap gap-1">
         {sources.map((source, index) => (
           <a
-            key={index}
+            key={source.chunk_id || index}
             href={source.url}
             target="_blank"
             rel="noopener noreferrer"

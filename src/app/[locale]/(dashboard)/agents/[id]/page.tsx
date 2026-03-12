@@ -58,6 +58,7 @@ interface AnalyticsSummary {
 export default function AgentDetailPage() {
   const params = useParams<{ id: string }>();
   const t = useTranslations('agents.console');
+  const crawlOptionsT = useTranslations('agents.console.monitoring.crawlOptions');
   const agentId = params.id;
   const [loading, setLoading] = useState(true);
   const [busy, startTransition] = useTransition();
@@ -75,6 +76,12 @@ export default function AgentDetailPage() {
   const [visibility, setVisibility] = useState<'public' | 'private' | 'passcode'>('public');
   const [passcode, setPasscode] = useState('');
   const [welcomeMessage, setWelcomeMessage] = useState('');
+  const [stealthMode, setStealthMode] = useState(false);
+  const [proxyUrl, setProxyUrl] = useState('');
+  const [enableOcr, setEnableOcr] = useState(false);
+  const [maxImagesOcr, setMaxImagesOcr] = useState('3');
+  const [enableTableDescriptions, setEnableTableDescriptions] = useState(false);
+  const [enableYoutubeTranscripts, setEnableYoutubeTranscripts] = useState(false);
   const [recrawlEnabled, setRecrawlEnabled] = useState(false);
   const [recrawlFrequency, setRecrawlFrequency] = useState('168');
   const [newDomain, setNewDomain] = useState('');
@@ -128,6 +135,12 @@ export default function AgentDetailPage() {
     setDescription(agentPayload.agent.description || '');
     setVisibility(agentPayload.agent.visibility || 'public');
     setWelcomeMessage(agentPayload.settings?.welcome_message || '');
+    setStealthMode(Boolean(agentPayload.settings?.crawl_options?.stealth_mode));
+    setProxyUrl(agentPayload.settings?.crawl_options?.proxy_url || '');
+    setEnableOcr(Boolean(agentPayload.settings?.crawl_options?.enable_ocr));
+    setMaxImagesOcr(String(agentPayload.settings?.crawl_options?.max_images_ocr || 3));
+    setEnableTableDescriptions(Boolean(agentPayload.settings?.crawl_options?.enable_table_descriptions));
+    setEnableYoutubeTranscripts(Boolean(agentPayload.settings?.crawl_options?.enable_youtube_transcripts));
     setRecrawlEnabled(Boolean(policyPayload.policy?.enabled));
     setRecrawlFrequency(String(policyPayload.policy?.frequency_hours || 168));
     setLoading(false);
@@ -168,6 +181,14 @@ export default function AgentDetailPage() {
           passcode: visibility === 'passcode' ? passcode : undefined,
           settings: {
             welcome_message: welcomeMessage,
+            crawl_options: {
+              stealth_mode: stealthMode,
+              proxy_url: proxyUrl || null,
+              enable_ocr: enableOcr,
+              max_images_ocr: Number(maxImagesOcr) || 3,
+              enable_table_descriptions: enableTableDescriptions,
+              enable_youtube_transcripts: enableYoutubeTranscripts,
+            },
           },
         }),
       });
@@ -281,7 +302,11 @@ export default function AgentDetailPage() {
       const response = await fetch('/api/crawl', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ agent_id: agentId, ignore_robots: true }),
+        body: JSON.stringify({
+          agent_id: agentId,
+          job_type: 'incremental',
+          ignore_robots: true,
+        }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -608,6 +633,66 @@ export default function AgentDetailPage() {
               <div className="rounded-[1.2rem] border border-border/70 bg-surface-glass px-4 py-3 text-sm text-muted-foreground">
                 {formatNumber(agent.crawl_stats?.errors || 0)}
               </div>
+            </Field>
+            <Field label={crawlOptionsT('stealthMode')}>
+              <label className="flex items-center gap-3 rounded-[1.2rem] border border-border/70 bg-surface-glass px-4 py-3 text-sm">
+                <input
+                  type="checkbox"
+                  checked={stealthMode}
+                  onChange={(event) => setStealthMode(event.target.checked)}
+                  className="h-4 w-4 rounded border-border accent-primary"
+                />
+                <span>{crawlOptionsT('stealthModeHint')}</span>
+              </label>
+            </Field>
+            <Field label={crawlOptionsT('proxyUrl')}>
+              <Input
+                value={proxyUrl}
+                onChange={(event) => setProxyUrl(event.target.value)}
+                placeholder="http://proxy.example:8080"
+              />
+            </Field>
+            <Field label={crawlOptionsT('ocrExtraction')}>
+              <label className="flex items-center gap-3 rounded-[1.2rem] border border-border/70 bg-surface-glass px-4 py-3 text-sm">
+                <input
+                  type="checkbox"
+                  checked={enableOcr}
+                  onChange={(event) => setEnableOcr(event.target.checked)}
+                  className="h-4 w-4 rounded border-border accent-primary"
+                />
+                <span>{crawlOptionsT('ocrExtractionHint')}</span>
+              </label>
+            </Field>
+            <Field label={crawlOptionsT('maxOcrImages')}>
+              <Input
+                type="number"
+                min={1}
+                max={10}
+                value={maxImagesOcr}
+                onChange={(event) => setMaxImagesOcr(event.target.value)}
+              />
+            </Field>
+            <Field label={crawlOptionsT('tableDescriptions')}>
+              <label className="flex items-center gap-3 rounded-[1.2rem] border border-border/70 bg-surface-glass px-4 py-3 text-sm">
+                <input
+                  type="checkbox"
+                  checked={enableTableDescriptions}
+                  onChange={(event) => setEnableTableDescriptions(event.target.checked)}
+                  className="h-4 w-4 rounded border-border accent-primary"
+                />
+                <span>{crawlOptionsT('tableDescriptionsHint')}</span>
+              </label>
+            </Field>
+            <Field label={crawlOptionsT('youtubeTranscripts')}>
+              <label className="flex items-center gap-3 rounded-[1.2rem] border border-border/70 bg-surface-glass px-4 py-3 text-sm">
+                <input
+                  type="checkbox"
+                  checked={enableYoutubeTranscripts}
+                  onChange={(event) => setEnableYoutubeTranscripts(event.target.checked)}
+                  className="h-4 w-4 rounded border-border accent-primary"
+                />
+                <span>{crawlOptionsT('youtubeTranscriptsHint')}</span>
+              </label>
             </Field>
           </div>
         </ConsoleCard>

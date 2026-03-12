@@ -5,21 +5,14 @@
  * Run with: npx tsx workers/nightly-eval.ts
  */
 
-import 'dotenv/config';
+import './load-env';
 import { createClient } from '@supabase/supabase-js';
-import { GoogleGenAI } from '@google/genai';
 
 function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) throw new Error('Missing Supabase environment variables');
   return createClient(url, key);
-}
-
-function getGeminiClient() {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('Missing GEMINI_API_KEY');
-  return new GoogleGenAI({ apiKey });
 }
 
 interface EvalCase {

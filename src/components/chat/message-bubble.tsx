@@ -22,20 +22,26 @@ interface MessageBubbleProps {
   role: 'user' | 'assistant';
   content: string;
   sources?: SourceCitation[];
+  messageId?: string;
+  sessionId?: string;
   isStreaming?: boolean;
   confidence?: number;
   model_used?: string;
   answered_from_sources_only?: boolean;
+  shareToken?: string;
 }
 
 export function MessageBubble({
   role,
   content,
   sources,
+  messageId,
+  sessionId,
   isStreaming,
   confidence,
   model_used,
   answered_from_sources_only,
+  shareToken,
 }: MessageBubbleProps) {
   const t = useTranslations('chat');
   const [feedback, setFeedback] = useState<'positive' | 'negative' | null>(null);
@@ -54,8 +60,27 @@ export function MessageBubble({
     }
   };
 
-  const handleFeedback = (type: 'positive' | 'negative') => {
-    setFeedback((current) => (current === type ? null : type));
+  const handleFeedback = async (type: 'positive' | 'negative') => {
+    const nextValue = feedback === type ? null : type;
+    setFeedback(nextValue);
+
+    if (!messageId) {
+      return;
+    }
+
+    try {
+      await fetch(`/api/messages/${messageId}/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          feedback: nextValue,
+          session_id: sessionId,
+          share_token: shareToken,
+        }),
+      });
+    } catch {
+      // Feedback is best-effort.
+    }
   };
 
   return (

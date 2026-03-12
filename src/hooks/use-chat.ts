@@ -13,6 +13,7 @@ export interface ChatMessage {
   confidence?: number;
   model_used?: string;
   answered_from_sources_only?: boolean;
+  serverMessageId?: string;
 }
 
 interface UseChatMessages {
@@ -139,6 +140,10 @@ export function useChat(
                         typeof parsed.answered_from_sources_only === 'boolean'
                           ? parsed.answered_from_sources_only
                           : undefined,
+                      serverMessageId:
+                        typeof parsed.message_id === 'string'
+                          ? parsed.message_id
+                          : undefined,
                     }
                   : msg
               )
@@ -241,6 +246,7 @@ export function useChat(
   return {
     messages,
     isLoading,
+    sessionId: sessionIdRef.current,
     sendMessage,
     resetChat,
   };

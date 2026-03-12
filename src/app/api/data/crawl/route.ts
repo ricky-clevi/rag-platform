@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { agentId, jobType = 'full', ignore_robots } = await request.json();
+  const { agentId, jobType = 'incremental', ignore_robots } = await request.json();
   if (!agentId) {
     return NextResponse.json({ error: 'agentId is required' }, { status: 400 });
   }

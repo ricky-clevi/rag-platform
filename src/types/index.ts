@@ -67,9 +67,51 @@ export interface Agent {
   enabled_locales: string[];
   visibility: AgentVisibility;
   passcode_hash: string | null;
+  embedding?: string | null;
+  custom_domain?: string | null;
+  custom_domain_verified?: boolean;
   crawl_stats: CrawlStats;
   created_at: string;
   updated_at: string;
+}
+
+export interface CompanyProfileFact {
+  value: string;
+  source_page_id?: string | null;
+  source_url?: string | null;
+}
+
+export interface CompanyFaqFact {
+  question: string;
+  answer: string;
+  source_page_id?: string | null;
+  source_url?: string | null;
+}
+
+export interface CompanyContactProfile {
+  email?: CompanyProfileFact | null;
+  phone?: CompanyProfileFact | null;
+  address?: CompanyProfileFact | null;
+}
+
+export interface CompanyProfileData {
+  company_name?: string;
+  industry?: CompanyProfileFact | null;
+  description?: CompanyProfileFact | null;
+  products?: CompanyProfileFact[];
+  team?: CompanyProfileFact[];
+  faqs?: CompanyFaqFact[];
+  contact?: CompanyContactProfile | null;
+  generated_at?: string;
+}
+
+export interface AgentCrawlOptions {
+  stealth_mode?: boolean;
+  proxy_url?: string;
+  enable_ocr?: boolean;
+  max_images_ocr?: number;
+  enable_table_descriptions?: boolean;
+  enable_youtube_transcripts?: boolean;
 }
 
 export interface AgentSettings {
@@ -84,6 +126,9 @@ export interface AgentSettings {
   escalation_model: string;
   escalation_threshold: number;
   theme_color: string;
+  company_profile?: CompanyProfileData | null;
+  crawl_options?: AgentCrawlOptions | null;
+  eval_dataset?: unknown[];
   created_at: string;
   updated_at: string;
 }
@@ -185,6 +230,14 @@ export interface Page {
   robots_allowed: boolean;
   clean_markdown: string | null;
   previous_markdown?: string | null;
+  synopsis?: string | null;
+  change_summary?: {
+    changed_at?: string;
+    summary?: string;
+    diff_size?: number;
+  } | null;
+  extraction_method?: 'readability' | 'cheerio' | 'llm' | null;
+  structured_data?: Record<string, unknown> | null;
   raw_html_length: number;
   page_type: 'html' | 'pdf' | 'other';
   crawl_status: PageCrawlStatus;
@@ -206,6 +259,8 @@ export interface Chunk {
   token_count: number;
   rank_weight: number;
   content_hash: string | null;
+  context_prefix?: string | null;
+  quality_score?: number | null;
   created_at: string;
 }
 
@@ -237,6 +292,7 @@ export interface Message {
 }
 
 export interface SourceCitation {
+  chunk_id?: string;
   url: string;
   title: string;
   snippet: string;
@@ -306,6 +362,7 @@ export interface MatchedChunk {
   snippet: string | null;
   heading_path: string | null;
   language: string;
+  context_prefix?: string | null;
   similarity: number;
   keyword_rank: number;
   combined_score: number;

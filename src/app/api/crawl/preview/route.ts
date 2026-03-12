@@ -3,7 +3,11 @@ import { isValidUrl } from '@/lib/utils/url';
 import { mapSiteUrls } from '@/lib/data/workspace';
 
 export async function POST(request: NextRequest) {
-  const { url } = await request.json();
+  const {
+    url,
+    include_paths = [],
+    exclude_paths = [],
+  } = await request.json();
 
   if (!url) {
     return NextResponse.json({ error: 'URL is required' }, { status: 400 });
@@ -16,7 +20,10 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const mapResult = await mapSiteUrls(targetUrl);
+    const mapResult = await mapSiteUrls(targetUrl, {
+      includePaths: include_paths,
+      excludePaths: exclude_paths,
+    });
     const homepageResult = await fetch(mapResult.rootUrl, {
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; AgentForgeBot/1.0)' },
       signal: AbortSignal.timeout(8000),
@@ -39,6 +46,7 @@ export async function POST(request: NextRequest) {
       reachable: homepageResult.ok,
       estimatedPages: mapResult.discoveredCount,
       estimatedMinutes: Math.max(1, Math.ceil(mapResult.discoveredCount / (likelySpa ? 30 : 120))),
+      pathGroups: mapResult.pathGroups,
     });
   } catch {
     const fallbackUrl = targetUrl.startsWith('http') ? targetUrl : `https://${targetUrl}`;
@@ -54,6 +62,7 @@ export async function POST(request: NextRequest) {
       reachable: false,
       estimatedPages: 0,
       estimatedMinutes: 0,
+      pathGroups: [],
       error: 'Could not reach the website',
     });
   }

@@ -40,7 +40,7 @@ export function ChatInterface({
     }),
     [t]
   );
-  const { messages, isLoading, sendMessage, resetChat } = useChat(
+  const { messages, isLoading, sessionId, sendMessage, resetChat } = useChat(
     agentId,
     shareToken,
     chatMessages
@@ -149,10 +149,13 @@ export function ChatInterface({
                   role={message.role}
                   content={message.content}
                   sources={message.sources}
+                  messageId={message.serverMessageId}
+                  sessionId={sessionId}
                   isStreaming={message.isStreaming}
                   confidence={message.confidence}
                   model_used={message.model_used}
                   answered_from_sources_only={message.answered_from_sources_only}
+                  shareToken={shareToken}
                 />
               ))}
             </div>
