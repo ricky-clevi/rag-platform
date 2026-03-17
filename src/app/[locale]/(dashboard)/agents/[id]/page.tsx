@@ -28,6 +28,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import type { Agent, AgentSettings, ShareLink } from '@/types';
+import { WidgetEmbedSection } from '@/components/widget-embed-section';
 
 interface AgentStats {
   pages: number;
@@ -801,6 +802,14 @@ export default function AgentDetailPage() {
           </div>
         </ConsoleCard>
       </div>
+
+      {agent.visibility === 'public' ? (
+        <WidgetEmbedSection
+          agentId={agent.id}
+          agentVisibility={agent.visibility}
+          platformUrl={process.env.NEXT_PUBLIC_APP_URL || 'https://agentforge.ai'}
+        />
+      ) : null}
     </div>
   );
 }

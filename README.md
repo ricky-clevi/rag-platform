@@ -38,6 +38,7 @@ Required:
 - `REDIS_URL`
 - `NEXT_PUBLIC_APP_URL`
 - `PASSCODE_SESSION_SECRET` (long random secret)
+- `WIDGET_SESSION_SECRET` (long random secret dedicated to widget sessions)
 
 Optional:
 

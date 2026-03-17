@@ -2,6 +2,7 @@
   "name": "rag-platform",
   "version": "0.1.0",
   "private": true,
+  "workspaces": ["packages/*"],
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -10,7 +11,9 @@
     "worker": "npx tsx workers/crawl-worker.ts",
     "recrawl-scheduler": "npx tsx workers/recrawl-scheduler.ts",
     "nightly-eval": "npx tsx workers/nightly-eval.ts",
-    "chunk-scorer": "npx tsx workers/chunk-scorer.ts"
+    "chunk-scorer": "npx tsx workers/chunk-scorer.ts",
+    "widget:build": "npm -w packages/widget run build",
+    "widget:dev": "npm -w packages/widget run dev"
   },
   "dependencies": {
     "@google/genai": "^1.43.0",

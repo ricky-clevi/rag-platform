@@ -177,6 +177,34 @@ export interface ShareLink {
 }
 
 // =============================================
+// Widget API keys
+// =============================================
+
+export interface WidgetApiKey {
+  id: string;
+  agent_id: string;
+  public_key: string;
+  label: string;
+  allowed_origins: string[];
+  rate_limit_per_minute: number;
+  is_active: boolean;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WidgetSession {
+  id: string;
+  api_key_id: string;
+  agent_id: string;
+  session_token: string;
+  session_jti: string;
+  origin: string | null;
+  expires_at: string;
+  created_at: string;
+}
+
+// =============================================
 // Crawl system
 // =============================================
 

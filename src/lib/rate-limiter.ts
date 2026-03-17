@@ -112,6 +112,27 @@ export const RATE_LIMITS = {
     windowMs: 3600_000,
     blockDurationMs: 3600_000,
   } satisfies RateLimitConfig,
+
+  /** Widget chat: 30 messages per minute per API key */
+  widgetChat: {
+    maxRequests: 30,
+    windowMs: 60_000,
+    blockDurationMs: 60_000,
+  } satisfies RateLimitConfig,
+
+  /** Widget chat per session_jti: 60 messages per minute */
+  widgetChatSession: {
+    maxRequests: 60,
+    windowMs: 60_000,
+    blockDurationMs: 30_000,
+  } satisfies RateLimitConfig,
+
+  /** Widget session creation: 10 per minute per IP */
+  widgetSession: {
+    maxRequests: 10,
+    windowMs: 60_000,
+    blockDurationMs: 60_000,
+  } satisfies RateLimitConfig,
 };
 
 /**
